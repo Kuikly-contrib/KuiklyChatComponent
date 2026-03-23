@@ -74,29 +74,33 @@ class ChatInputBarView : ComposeView<ChatInputBarAttr, ChatInputBarEvent>() {
                     }
 
                     // 发送按钮
-                    View {
-                        attr {
-                            size(60f, 36f)
-                            marginLeft(8f)
-                            borderRadius(18f)
-                            backgroundLinearGradient(
-                                Direction.TO_RIGHT,
-                                ColorStop(Color(ctx.attr.primaryColor), 0f),
-                                ColorStop(Color(ctx.attr.primaryGradientEndColor), 1f)
-                            )
-                            allCenter()
-                        }
-                        Text {
+                    if (ctx.attr.showSendButton) {
+                        View {
                             attr {
-                                text("发送")
-                                fontSize(14f)
-                                fontWeightMedium()
-                                color(Color.WHITE)
+                                minWidth(60f)
+                                height(36f)
+                                marginLeft(8f)
+                                borderRadius(18f)
+                                backgroundLinearGradient(
+                                    Direction.TO_RIGHT,
+                                    ColorStop(Color(ctx.attr.primaryColor), 0f),
+                                    ColorStop(Color(ctx.attr.primaryGradientEndColor), 1f)
+                                )
+                                allCenter()
+                                padding(0f, 12f, 0f, 12f)
                             }
-                        }
-                        event {
-                            click {
-                                ctx.sendMessage()
+                            Text {
+                                attr {
+                                    text(ctx.attr.sendButtonText)
+                                    fontSize(14f)
+                                    fontWeightMedium()
+                                    color(Color.WHITE)
+                                }
+                            }
+                            event {
+                                click {
+                                    ctx.sendMessage()
+                                }
                             }
                         }
                     }
@@ -127,6 +131,9 @@ class ChatInputBarAttr : ComposeAttr() {
     var placeholder: String by observable("输入消息...")
     var primaryColor: Long by observable(0xFF4F8FFF)
     var primaryGradientEndColor: Long by observable(0xFF6C5CE7)
+    var showSendButton: Boolean by observable(true)
+    /** 发送按钮文案 */
+    var sendButtonText: String by observable("发送")
 }
 
 class ChatInputBarEvent : ComposeEvent() {

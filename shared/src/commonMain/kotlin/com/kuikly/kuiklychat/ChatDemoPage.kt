@@ -11,10 +11,8 @@ import com.tencent.kuiklybase.chat.*
 /**
  * 聊天组件 Demo 页面
  *
- * 展示 ChatSession 组件的开箱即用体验：
- * - Pager 层声明 observableList
- * - created() 中加载初始数据
- * - body() 中使用 ChatSession({ messageList }) { ... } 一行搞定
+ * 展示 ChatSession 组件的开箱即用体验 + 各种自定义能力。
+ * 当前激活的是「背景图 + 自定义气泡颜色」示例，其他示例见注释。
  */
 @Page("chat", supportInLocal = true)
 internal class ChatDemoPage : BasePager() {
@@ -24,7 +22,6 @@ internal class ChatDemoPage : BasePager() {
 
     override fun created() {
         super.created()
-        // 在 Pager.created() 中加载初始数据
         messageList.addAll(createInitialMessages())
     }
 
@@ -32,13 +29,25 @@ internal class ChatDemoPage : BasePager() {
         val ctx = this
         val chatTitle = pageData.params.optString("chatTitle").ifEmpty { "KuiklyChat" }
         return {
-            // ChatSession 是纯 DSL 扩展函数，vfor 直接在此上下文中展开
-            // 响应式依赖收集直接绑定到 Pager 层的 observableList
+
+            // ============================
+            // 当前激活：背景图 + 自定义气泡颜色
+            // ============================
             ChatSession({ ctx.messageList }) {
                 title = chatTitle
                 showBackButton = true
-                primaryColor = 0xFF4F8FFF
-                primaryGradientEndColor = 0xFF6C5CE7
+                autoScrollToBottom = true
+
+                //  聊天背景图
+                backgroundImage = "https://picsum.photos/800/1600"
+
+                //  自定义气泡颜色
+                primaryColor = 0xFF6C5CE7          // 自己的气泡渐变起始色
+                primaryGradientEndColor = 0xFFA29BFE // 自己的气泡渐变结束色
+                otherBubbleColor = 0xFFF5F0FF       // 对方气泡背景（淡紫色）
+                otherTextColor = 0xFF2D3436          // 对方文字颜色
+                selfTextColor = 0xFFFFFFFF           // 自己文字颜色
+
                 onBackClick = {
                     ctx.acquireModule<RouterModule>(RouterModule.MODULE_NAME).closePage()
                 }
@@ -46,22 +55,88 @@ internal class ChatDemoPage : BasePager() {
                     ctx.onSendMessage(text)
                 }
             }
+
+            // ============================
+            // 示例 1：最简用法（开箱即用）
+            // ============================
+            // ChatSession({ ctx.messageList }) {
+            //     title = chatTitle
+            //     showBackButton = true
+            //     autoScrollToBottom = true
+            //     onBackClick = {
+            //         ctx.acquireModule<RouterModule>(RouterModule.MODULE_NAME).closePage()
+            //     }
+            //     onSendMessage = { text -> ctx.onSendMessage(text) }
+            // }
+
+            // ============================
+            // 示例 2：隐藏头像 + 隐藏昵称（简洁 1v1 聊天风格）
+            // ============================
+            // ChatSession({ ctx.messageList }) {
+            //     title = chatTitle
+            //     showAvatar = false
+            //     showSenderName = false
+            //     onSendMessage = { text -> ctx.onSendMessage(text) }
+            // }
+
+            // ============================
+            // 示例 3：自定义气泡渲染（Slot 模式）
+            // ============================
+            // ChatSession({ ctx.messageList }) {
+            //     title = chatTitle
+            //     onSendMessage = { text -> ctx.onSendMessage(text) }
+            //     messageBubble = { container, message, config ->
+            //         container.ChatBubble {
+            //             attr {
+            //                 content = message.content
+            //                 isSelf = message.isSelf
+            //                 avatarUrl = message.senderAvatar
+            //                 senderName = if (!message.isSelf) message.senderName else ""
+            //                 primaryColor = 0xFFFF6B6B
+            //                 primaryGradientEndColor = 0xFFEE5A24
+            //             }
+            //         }
+            //     }
+            // }
+
+            // ============================
+            // 示例 4：自定义输入栏（Slot 模式）
+            // ============================
+            // ChatSession({ ctx.messageList }) {
+            //     title = chatTitle
+            //     onSendMessage = { text -> ctx.onSendMessage(text) }
+            //     inputBar = { container, onSend ->
+            //         container.ChatInputBar {
+            //             attr {
+            //                 placeholder = "说点什么吧..."
+            //                 primaryColor = 0xFFFF6B6B
+            //                 primaryGradientEndColor = 0xFFEE5A24
+            //                 sendButtonText = "GO"
+            //             }
+            //             event { onSendMessage = onSend }
+            //         }
+            //     }
+            // }
+
+            // ============================
+            // 示例 5：只读模式（隐藏输入栏，查看聊天记录）
+            // ============================
+            // ChatSession({ ctx.messageList }) {
+            //     title = "聊天记录"
+            //     showInputBar = false
+            // }
         }
     }
 
-    // ============================
-    // 业务逻辑
-    // ============================
 
     private fun onSendMessage(text: String) {
-        // 添加用户消息
-        messageList.add(
-            ChatMessageHelper.createTextMessage(
-                content = text,
-                isSelf = true,
-                senderName = "我"
-            )
+        val userMessage = ChatMessageHelper.createTextMessage(
+            content = text,
+            isSelf = true,
+            senderName = "我",
+            status = MessageStatus.SENT
         )
+        messageList.add(userMessage)
 
         // 模拟自动回复（延迟 1 秒）
         setTimeout(1000) {
@@ -71,6 +146,7 @@ internal class ChatDemoPage : BasePager() {
 
     private fun createInitialMessages(): List<ChatMessage> {
         return listOf(
+            ChatMessageHelper.createSystemMessage("以下是新的聊天"),
             ChatMessageHelper.createTextMessage(
                 content = "你好！欢迎使用 KuiklyChat 💬",
                 isSelf = false,
@@ -89,7 +165,7 @@ internal class ChatDemoPage : BasePager() {
                 senderName = "我"
             ),
             ChatMessageHelper.createTextMessage(
-                content = "支持文本消息发送和接收，还有系统提示消息哦～",
+                content = "支持背景图、自定义气泡颜色、隐藏头像等功能哦～",
                 isSelf = false,
                 senderName = "小助手",
                 senderAvatar = ASSISTANT_AVATAR

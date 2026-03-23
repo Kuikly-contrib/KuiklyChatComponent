@@ -72,15 +72,21 @@ class ChatNavigationBarView : ComposeView<ChatNavBarAttr, ChatNavBarEvent>() {
                             flex(1f)
                             text(ctx.attr.title)
                             fontSize(17f)
-                            fontWeightSemisolid()
+                            fontWeightSemiBold()
                             color(Color.WHITE)
                             textAlignCenter()
                         }
                     }
-                    // 右侧占位（保持标题居中）
+                    // 右侧操作区域
                     View {
                         attr {
                             size(48f, 48f)
+                            allCenter()
+                        }
+                        event {
+                            click {
+                                ctx.event.onTrailingClick?.invoke()
+                            }
                         }
                     }
                 }
@@ -103,6 +109,8 @@ class ChatNavBarAttr : ComposeAttr() {
 
 class ChatNavBarEvent : ComposeEvent() {
     var onBackClick: (() -> Unit)? = null
+    /** 导航栏右侧按钮点击事件 */
+    var onTrailingClick: (() -> Unit)? = null
 }
 
 fun ViewContainer<*, *>.ChatNavigationBar(init: ChatNavigationBarView.() -> Unit) {

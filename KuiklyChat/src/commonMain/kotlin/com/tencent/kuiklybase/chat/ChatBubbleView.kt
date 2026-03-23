@@ -74,20 +74,22 @@ class ChatBubbleView : ComposeView<ChatBubbleAttr, ChatBubbleEvent>() {
 
                 if (!ctx.attr.isSelf) {
                     // ===== 对方消息：头像在左 =====
-                    // 头像
-                    Image {
-                        attr {
-                            size(40f, 40f)
-                            borderRadius(20f)
-                            src(ctx.attr.avatarUrl.ifEmpty { DEFAULT_AVATAR })
-                            resizeCover()
-                            marginTop(2f)
+                    if (ctx.attr.showAvatar) {
+                        // 头像
+                        Image {
+                            attr {
+                                size(40f, 40f)
+                                borderRadius(20f)
+                                src(ctx.attr.avatarUrl.ifEmpty { DEFAULT_AVATAR })
+                                resizeCover()
+                                marginTop(2f)
+                            }
                         }
                     }
                     // 消息内容区
                     Column {
                         attr {
-                            marginLeft(8f)
+                            marginLeft(if (ctx.attr.showAvatar) 8f else 0f)
                             maxWidth(ctx.pagerData.pageViewWidth * 0.65f)
                         }
                         // 发送者名称
@@ -104,7 +106,7 @@ class ChatBubbleView : ComposeView<ChatBubbleAttr, ChatBubbleEvent>() {
                         // 消息气泡
                         View {
                             attr {
-                                backgroundColor(Color.WHITE)
+                                backgroundColor(Color(ctx.attr.otherBubbleColor))
                                 borderRadius(BorderRectRadius(2f, 12f, 12f, 12f))
                                 padding(10f, 12f, 10f, 12f)
                                 boxShadow(BoxShadow(0f, 1f, 6f, Color(0x1A000000)))
@@ -113,11 +115,14 @@ class ChatBubbleView : ComposeView<ChatBubbleAttr, ChatBubbleEvent>() {
                                 attr {
                                     text(ctx.attr.content)
                                     fontSize(15f)
-                                    color(Color(0xFF333333))
+                                    color(Color(ctx.attr.otherTextColor))
                                     lineHeight(22f)
                                 }
                             }
                             event {
+                                click {
+                                    ctx.event.onClick?.invoke()
+                                }
                                 longPress {
                                     ctx.event.onLongPress?.invoke()
                                 }
@@ -147,26 +152,55 @@ class ChatBubbleView : ComposeView<ChatBubbleAttr, ChatBubbleEvent>() {
                                 attr {
                                     text(ctx.attr.content)
                                     fontSize(15f)
-                                    color(Color.WHITE)
+                                    color(Color(ctx.attr.selfTextColor))
                                     lineHeight(22f)
                                 }
                             }
                             event {
+                                click {
+                                    ctx.event.onClick?.invoke()
+                                }
                                 longPress {
                                     ctx.event.onLongPress?.invoke()
                                 }
                             }
                         }
+                        // 消息状态指示器（仅自己发送的消息显示）
+                        if (ctx.attr.status != MessageStatus.SENT) {
+                            Text {
+                                attr {
+                                    marginTop(2f)
+                                    fontSize(10f)
+                                    when (ctx.attr.status) {
+                                        MessageStatus.SENDING -> {
+                                            text("发送中...")
+                                            color(Color(0xFF999999))
+                                        }
+                                        MessageStatus.FAILED -> {
+                                            text("发送失败")
+                                            color(Color(0xFFFF4444))
+                                        }
+                                        MessageStatus.READ -> {
+                                            text("已读")
+                                            color(Color(0xFF999999))
+                                        }
+                                        else -> {}
+                                    }
+                                }
+                            }
+                        }
                     }
                     // 头像
-                    Image {
-                        attr {
-                            size(40f, 40f)
-                            borderRadius(20f)
-                            src(ctx.attr.selfAvatarUrl.ifEmpty { SELF_AVATAR })
-                            resizeCover()
-                            marginLeft(8f)
-                            marginTop(2f)
+                    if (ctx.attr.showAvatar) {
+                        Image {
+                            attr {
+                                size(40f, 40f)
+                                borderRadius(20f)
+                                src(ctx.attr.selfAvatarUrl.ifEmpty { SELF_AVATAR })
+                                resizeCover()
+                                marginLeft(8f)
+                                marginTop(2f)
+                            }
                         }
                     }
                 }
@@ -190,9 +224,19 @@ class ChatBubbleAttr : ComposeAttr() {
     var senderName: String by observable("")
     var primaryColor: Long by observable(0xFF4F8FFF)
     var primaryGradientEndColor: Long by observable(0xFF6C5CE7)
+    var status: MessageStatus by observable(MessageStatus.SENT)
+    /** 对方消息气泡背景色 */
+    var otherBubbleColor: Long by observable(0xFFFFFFFF)
+    /** 对方消息文字颜色 */
+    var otherTextColor: Long by observable(0xFF333333)
+    /** 自己消息文字颜色 */
+    var selfTextColor: Long by observable(0xFFFFFFFF)
+    /** 是否显示头像 */
+    var showAvatar: Boolean by observable(true)
 }
 
 class ChatBubbleEvent : ComposeEvent() {
+    var onClick: (() -> Unit)? = null
     var onLongPress: (() -> Unit)? = null
 }
 
