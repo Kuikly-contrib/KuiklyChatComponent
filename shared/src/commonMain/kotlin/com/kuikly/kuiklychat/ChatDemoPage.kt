@@ -1,103 +1,74 @@
 package com.kuikly.kuiklychat
 
 import com.tencent.kuikly.core.annotations.Page
-import com.tencent.kuikly.core.base.*
+import com.tencent.kuikly.core.base.ViewBuilder
 import com.tencent.kuikly.core.module.RouterModule
 import com.tencent.kuikly.core.reactive.handler.*
 import com.tencent.kuikly.core.timer.setTimeout
-import com.tencent.kuikly.core.views.*
 import com.kuikly.kuiklychat.base.BasePager
 import com.tencent.kuiklybase.chat.*
 
 /**
  * 聊天组件 Demo 页面
  *
- * 演示 KuiklyChatComponent 组件的完整功能：
- * - 消息列表展示（支持发送方/接收方区分）
- * - 文本消息发送
- * - 系统消息展示
- * - 自动回复模拟
- * - 键盘弹出时自动滚动
+ * 展示 ChatSession 组件的开箱即用体验：
+ * - Pager 层声明 observableList
+ * - created() 中加载初始数据
+ * - body() 中使用 ChatSession({ messageList }) { ... } 一行搞定
  */
 @Page("chat", supportInLocal = true)
 internal class ChatDemoPage : BasePager() {
 
-
+    // Pager 层声明 observableList
     var messageList by observableList<ChatMessage>()
 
-    init {
+    override fun created() {
+        super.created()
+        // 在 Pager.created() 中加载初始数据
         messageList.addAll(createInitialMessages())
     }
 
-    // ChatSession 组件引用
-    private lateinit var chatSessionRef: ViewRef<ChatSessionView>
-
     override fun body(): ViewBuilder {
         val ctx = this
+        val chatTitle = pageData.params.optString("chatTitle").ifEmpty { "KuiklyChat" }
         return {
-            attr {
-                flex(1f)
-            }
-
-            // 使用聊天会话组件
-            ChatSession {
-                ref { ctx.chatSessionRef = it }
-                attr {
-                    title = ctx.pageData.params.optString("chatTitle").ifEmpty { "KuiklyChat" }
-                    showNavigationBar = true
-                    showBackButton = true
-                    messages = ctx.messageList
-                    inputPlaceholder = "输入消息..."
-                    // 主题色配置
-                    primaryColor = 0xFF4F8FFF
-                    primaryGradientEndColor = 0xFF6C5CE7
-                    backgroundColor = 0xFFF0F2F5
+            // ChatSession 是纯 DSL 扩展函数，vfor 直接在此上下文中展开
+            // 响应式依赖收集直接绑定到 Pager 层的 observableList
+            ChatSession({ ctx.messageList }) {
+                title = chatTitle
+                showBackButton = true
+                primaryColor = 0xFF4F8FFF
+                primaryGradientEndColor = 0xFF6C5CE7
+                onBackClick = {
+                    ctx.acquireModule<RouterModule>(RouterModule.MODULE_NAME).closePage()
                 }
-                event {
-                    onSendMessage = { text ->
-                        ctx.onSendMessage(text)
-                    }
-                    onBackClick = {
-                        ctx.acquireModule<RouterModule>(RouterModule.MODULE_NAME).closePage()
-                    }
-                    onMessageLongPress = { message ->
-                        // 可扩展长按功能（如复制、删除等）
-                    }
+                onSendMessage = { text ->
+                    ctx.onSendMessage(text)
                 }
             }
         }
     }
 
-    /**
-     * 处理发送消息
-     */
+    // ============================
+    // 业务逻辑
+    // ============================
+
     private fun onSendMessage(text: String) {
         // 添加用户消息
-        val userMessage = ChatMessageHelper.createTextMessage(
-            content = text,
-            isSelf = true,
-            senderName = "我"
+        messageList.add(
+            ChatMessageHelper.createTextMessage(
+                content = text,
+                isSelf = true,
+                senderName = "我"
+            )
         )
-        messageList.add(userMessage)
-
-        // 滚动到底部
-        setTimeout(100) {
-            chatSessionRef.view?.scrollToBottom(true)
-        }
 
         // 模拟自动回复（延迟 1 秒）
         setTimeout(1000) {
-            val reply = createAutoReply(text)
-            messageList.add(reply)
-            setTimeout(100) {
-                chatSessionRef.view?.scrollToBottom(true)
-            }
+            messageList.add(createAutoReply(text))
         }
     }
 
-    /**
-     * 创建初始消息列表
-     */
     private fun createInitialMessages(): List<ChatMessage> {
         return listOf(
             ChatMessageHelper.createTextMessage(
@@ -131,9 +102,6 @@ internal class ChatDemoPage : BasePager() {
         )
     }
 
-    /**
-     * 创建自动回复消息
-     */
     private fun createAutoReply(userMessage: String): ChatMessage {
         val replies = listOf(
             "收到你的消息：\"$userMessage\" 😊",
