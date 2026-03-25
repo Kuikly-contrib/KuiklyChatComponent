@@ -61,10 +61,24 @@ class ChatBubbleView : ComposeView<ChatBubbleAttr, ChatBubbleEvent>() {
     override fun body(): ViewBuilder {
         val ctx = this
         return {
+            // 计算气泡最大宽度
+            val bubbleMaxWidth = ctx.pagerData.pageViewWidth * ctx.attr.bubbleMaxWidthRatio
+            // 气泡内左右 padding 总和
+            val bubblePaddingTotal = ctx.attr.bubblePaddingH * 2
+            // 可用于显示文字的最大宽度
+            val textMaxWidth = bubbleMaxWidth - bubblePaddingTotal
+            // 估算文字单行宽度（中文字约等于 fontSize，英文/数字约 0.6 倍 fontSize）
+            val fontSize = ctx.attr.messageFontSize
+            val estimatedTextWidth = ctx.attr.content.fold(0f) { acc, c ->
+                acc + if (c.code > 0x7F) fontSize else fontSize * 0.6f
+            }
+            // 是否需要换行：文字预估宽度超过可显示宽度
+            val needsWrap = estimatedTextWidth > textMaxWidth
+
             View {
                 attr {
                     flexDirectionRow()
-                    padding(6f, 12f, 6f, 12f)
+                    padding(ctx.attr.rowPaddingV, ctx.attr.rowPaddingH, ctx.attr.rowPaddingV, ctx.attr.rowPaddingH)
                     if (ctx.attr.isSelf) {
                         justifyContent(FlexJustifyContent.FLEX_END)
                     } else {
@@ -75,22 +89,40 @@ class ChatBubbleView : ComposeView<ChatBubbleAttr, ChatBubbleEvent>() {
                 if (!ctx.attr.isSelf) {
                     // ===== 对方消息：头像在左 =====
                     if (ctx.attr.showAvatar) {
-                        // 头像
-                        Image {
+                        // 头像（带背景色，防止透明头像与背景融为一体）
+                        View {
                             attr {
-                                size(40f, 40f)
-                                borderRadius(20f)
-                                src(ctx.attr.avatarUrl.ifEmpty { DEFAULT_AVATAR })
-                                resizeCover()
+                                size(ctx.attr.avatarSize, ctx.attr.avatarSize)
+                                borderRadius(ctx.attr.avatarRadius)
+                                backgroundColor(Color(0xFFE8E8E8))
                                 marginTop(2f)
+                            }
+                            Image {
+                                attr {
+                                    size(ctx.attr.avatarSize, ctx.attr.avatarSize)
+                                    borderRadius(ctx.attr.avatarRadius)
+                                    src(ctx.attr.avatarUrl.ifEmpty { DEFAULT_AVATAR })
+                                    resizeCover()
+                                }
+                            }
+                        }
+                    } else if (ctx.attr.showAvatarPlaceholder) {
+                        // 分组内非最后一条：头像占位
+                        View {
+                            attr {
+                                size(ctx.attr.avatarSize, ctx.attr.avatarSize)
                             }
                         }
                     }
                     // 消息内容区
                     Column {
                         attr {
-                            marginLeft(if (ctx.attr.showAvatar) 8f else 0f)
-                            maxWidth(ctx.pagerData.pageViewWidth * 0.65f)
+                            marginLeft(if (ctx.attr.showAvatar || ctx.attr.showAvatarPlaceholder) ctx.attr.avatarBubbleGap else 0f)
+                            if (needsWrap) {
+                                // 长文本：用固定宽度，让 Text 在此宽度内自动换行
+                                width(bubbleMaxWidth)
+                            }
+                            // 短文本：不设宽度，Column 自适应内容，气泡包裹文字
                         }
                         // 发送者名称
                         if (ctx.attr.senderName.isNotEmpty()) {
@@ -108,15 +140,15 @@ class ChatBubbleView : ComposeView<ChatBubbleAttr, ChatBubbleEvent>() {
                             attr {
                                 backgroundColor(Color(ctx.attr.otherBubbleColor))
                                 borderRadius(BorderRectRadius(2f, 12f, 12f, 12f))
-                                padding(10f, 12f, 10f, 12f)
+                                padding(ctx.attr.bubblePaddingV, ctx.attr.bubblePaddingH, ctx.attr.bubblePaddingV, ctx.attr.bubblePaddingH)
                                 boxShadow(BoxShadow(0f, 1f, 6f, Color(0x1A000000)))
                             }
                             Text {
                                 attr {
                                     text(ctx.attr.content)
-                                    fontSize(15f)
+                                    fontSize(ctx.attr.messageFontSize)
                                     color(Color(ctx.attr.otherTextColor))
-                                    lineHeight(22f)
+                                    lineHeight(ctx.attr.messageLineHeight)
                                 }
                             }
                             event {
@@ -130,10 +162,41 @@ class ChatBubbleView : ComposeView<ChatBubbleAttr, ChatBubbleEvent>() {
                         }
                     }
                 } else {
-                    // ===== 自己的消息：气泡在左，头像在右 =====
+                    // ===== 自己的消息：重发按钮 + 气泡 + 头像 =====
+
+                    // 重发按钮（发送失败时显示在气泡左侧）
+                    if (ctx.attr.showResend && ctx.attr.status == MessageStatus.FAILED) {
+                        View {
+                            attr {
+                                size(24f, 24f)
+                                borderRadius(12f)
+                                backgroundColor(Color(0xFFFF4444))
+                                allCenter()
+                                marginRight(6f)
+                                alignSelf(FlexAlign.CENTER)
+                            }
+                            Text {
+                                attr {
+                                    text("!")
+                                    fontSize(14f)
+                                    fontWeightBold()
+                                    color(Color.WHITE)
+                                }
+                            }
+                            event {
+                                click {
+                                    ctx.event.onResendClick?.invoke()
+                                }
+                            }
+                        }
+                    }
+
                     Column {
                         attr {
-                            maxWidth(ctx.pagerData.pageViewWidth * 0.65f)
+                            if (needsWrap) {
+                                // 长文本：用固定宽度，让 Text 在此宽度内自动换行
+                                width(bubbleMaxWidth)
+                            }
                             alignItems(FlexAlign.FLEX_END)
                         }
                         // 消息气泡（渐变色）
@@ -145,15 +208,15 @@ class ChatBubbleView : ComposeView<ChatBubbleAttr, ChatBubbleEvent>() {
                                     ColorStop(Color(ctx.attr.primaryGradientEndColor), 1f)
                                 )
                                 borderRadius(BorderRectRadius(12f, 2f, 12f, 12f))
-                                padding(10f, 12f, 10f, 12f)
+                                padding(ctx.attr.bubblePaddingV, ctx.attr.bubblePaddingH, ctx.attr.bubblePaddingV, ctx.attr.bubblePaddingH)
                                 boxShadow(BoxShadow(0f, 1f, 6f, Color(0x334F8FFF)))
                             }
                             Text {
                                 attr {
                                     text(ctx.attr.content)
-                                    fontSize(15f)
+                                    fontSize(ctx.attr.messageFontSize)
                                     color(Color(ctx.attr.selfTextColor))
-                                    lineHeight(22f)
+                                    lineHeight(ctx.attr.messageLineHeight)
                                 }
                             }
                             event {
@@ -177,7 +240,7 @@ class ChatBubbleView : ComposeView<ChatBubbleAttr, ChatBubbleEvent>() {
                                             color(Color(0xFF999999))
                                         }
                                         MessageStatus.FAILED -> {
-                                            text("发送失败")
+                                            text("发送失败，点击重试")
                                             color(Color(0xFFFF4444))
                                         }
                                         MessageStatus.READ -> {
@@ -190,16 +253,31 @@ class ChatBubbleView : ComposeView<ChatBubbleAttr, ChatBubbleEvent>() {
                             }
                         }
                     }
-                    // 头像
+                    // 头像（带背景色，防止透明头像与背景融为一体）
                     if (ctx.attr.showAvatar) {
-                        Image {
+                        View {
                             attr {
-                                size(40f, 40f)
-                                borderRadius(20f)
-                                src(ctx.attr.selfAvatarUrl.ifEmpty { SELF_AVATAR })
-                                resizeCover()
-                                marginLeft(8f)
+                                size(ctx.attr.avatarSize, ctx.attr.avatarSize)
+                                borderRadius(ctx.attr.avatarRadius)
+                                backgroundColor(Color(0xFFE8E8E8))
+                                marginLeft(ctx.attr.avatarBubbleGap)
                                 marginTop(2f)
+                            }
+                            Image {
+                                attr {
+                                    size(ctx.attr.avatarSize, ctx.attr.avatarSize)
+                                    borderRadius(ctx.attr.avatarRadius)
+                                    src(ctx.attr.selfAvatarUrl.ifEmpty { SELF_AVATAR })
+                                    resizeCover()
+                                }
+                            }
+                        }
+                    } else if (ctx.attr.showAvatarPlaceholder) {
+                        // 分组内非最后一条：头像占位
+                        View {
+                            attr {
+                                marginLeft(ctx.attr.avatarBubbleGap)
+                                size(ctx.attr.avatarSize, ctx.attr.avatarSize)
                             }
                         }
                     }
@@ -233,11 +311,38 @@ class ChatBubbleAttr : ComposeAttr() {
     var selfTextColor: Long by observable(0xFFFFFFFF)
     /** 是否显示头像 */
     var showAvatar: Boolean by observable(true)
+    /** 不显示头像时是否保留占位空间（分组内非最后一条消息时为 true） */
+    var showAvatarPlaceholder: Boolean by observable(false)
+    /** 头像圆角半径（20f = 圆形，8f = 微信风格圆角方形，0f = 方形） */
+    var avatarRadius: Float by observable(8f)
+    /** 是否显示重发按钮（发送失败时） */
+    var showResend: Boolean by observable(false)
+
+    // ---------- 布局可配属性（均有默认值，使用方可按需覆盖） ----------
+    /** 气泡最大宽度占屏幕宽度的比例 */
+    var bubbleMaxWidthRatio: Float by observable(0.65f)
+    /** 气泡内水平 padding（单侧） */
+    var bubblePaddingH: Float by observable(12f)
+    /** 气泡内垂直 padding（单侧） */
+    var bubblePaddingV: Float by observable(10f)
+    /** 消息文字大小 */
+    var messageFontSize: Float by observable(15f)
+    /** 消息行高 */
+    var messageLineHeight: Float by observable(22f)
+    /** 头像尺寸（宽高相同） */
+    var avatarSize: Float by observable(40f)
+    /** 消息行垂直 padding */
+    var rowPaddingV: Float by observable(6f)
+    /** 消息行水平 padding */
+    var rowPaddingH: Float by observable(12f)
+    /** 头像与气泡的间距 */
+    var avatarBubbleGap: Float by observable(8f)
 }
 
 class ChatBubbleEvent : ComposeEvent() {
     var onClick: (() -> Unit)? = null
     var onLongPress: (() -> Unit)? = null
+    var onResendClick: (() -> Unit)? = null
 }
 
 fun ViewContainer<*, *>.ChatBubble(init: ChatBubbleView.() -> Unit) {

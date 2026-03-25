@@ -1,8 +1,11 @@
 package com.tencent.kuiklybase.chat
 
 import com.tencent.kuikly.core.base.*
-import com.tencent.kuikly.core.directives.vfor
+import com.tencent.kuikly.core.directives.scrollToPosition
+import com.tencent.kuikly.core.directives.vforLazy
+import com.tencent.kuikly.core.layout.FlexAlign
 import com.tencent.kuikly.core.layout.FlexDirection
+import com.tencent.kuikly.core.layout.FlexJustifyContent
 import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.reactive.handler.*
 import com.tencent.kuikly.core.views.*
@@ -12,76 +15,111 @@ import com.tencent.kuikly.core.views.*
 // ============================
 
 /**
- * ChatSession - 完整聊天会话的 DSL 扩展函数
+ * ChatSession - 聊天对话列表组件
  *
- * 开箱即用的聊天界面，同时支持通过 Slot 深度定制。
- *
- * ## 最简用法
- * ```kotlin
- * ChatSession({ ctx.messageList }) {
- *     title = "聊天"
- *     onSendMessage = { text -> ctx.messageList.add(...) }
- * }
- * ```
- *
- * ## 设置背景图 + 自定义气泡颜色
- * ```kotlin
- * ChatSession({ ctx.messageList }) {
- *     backgroundImage = "https://example.com/chat-bg.jpg"
- *     otherBubbleColor = 0xFFF5E6CC
- *     onSendMessage = { text -> ... }
- * }
- * ```
- *
- * ## 自定义气泡
- * ```kotlin
- * ChatSession({ ctx.messageList }) {
- *     onSendMessage = { text -> ... }
- *     messageBubble = { container, message, config ->
- *         container.MyCustomBubble {
- *             attr { content = message.content }
- *         }
- *     }
- * }
- * ```
+ * 架构参考 Stream Chat Compose SDK 的组件层次：
+ * - Screen 组件级别：ChatSession ≈ MessagesScreen（组合 Header + MessageList）
+ * - 输入栏外置：与 Stream Chat 的原子化设计一致（MessageComposer 独立）
+ * - Slot 自定义：参考 Stream Chat 的 itemContent / emptyContent / loadingContent / helperContent
+ * - 上下文感知：参考 Stream Chat 的 MessageItemState（前后消息、分组信息）
  */
 fun ViewContainer<*, *>.ChatSession(
     messageList: () -> ObservableList<ChatMessage>,
     config: ChatSessionConfig.() -> Unit
 ) {
     val cfg = ChatSessionConfig().apply(config)
-    // 用于持有 List 引用以实现自动滚动
+    val listOptions = cfg.messageListOptions
+    val slots = cfg.slots
+    val theme = cfg.theme
+
+    // 持有 List 引用
     var listViewRef: ViewRef<ListView<*, *>>? = null
+    // 普通变量（非响应式），通过 scrollEnd 事件维护，不会触发视图重建
+    var atBottom = true
+    // 记录上次已知的消息数量，用于检测新消息
+    var lastKnownSize = messageList().size
+
+    // ========== 滚动控制 ==========
+
+    val scrollToBottom: (Boolean) -> Unit = { animate ->
+        getPager().addTaskWhenPagerUpdateLayoutFinish {
+            val list = messageList()
+            if (list.isNotEmpty()) {
+                listViewRef?.view?.scrollToPosition(
+                    index = list.size - 1,
+                    offset = 0f,
+                    animate = animate
+                )
+            }
+        }
+    }
+
+    /**
+     * 自动滚动策略（参考 Stream Chat MessageList 的滚动行为）：
+     * - 自己的消息 → 必须滚动到底部
+     * - 他人的消息 → 仅当当前在底部时才滚动（10px 容差）
+     */
+    val checkAutoScroll: () -> Unit = {
+        val list = messageList()
+        val currentSize = list.size
+        if (currentSize > lastKnownSize) {
+            val lastMessage = list.lastOrNull()
+            if (lastMessage != null && lastMessage.isSelf) {
+                scrollToBottom(true)
+            } else if (atBottom) {
+                scrollToBottom(true)
+            }
+        }
+        lastKnownSize = currentSize
+    }
+
+    cfg.scrollToBottomAction = scrollToBottom
+
+    // scrollToMessage：滚动到指定消息 ID 的位置
+    cfg.scrollToMessageAction = { messageId, animate ->
+        val list = messageList()
+        val index = list.indexOfFirst { it.id == messageId }
+        if (index >= 0) {
+            getPager().addTaskWhenPagerUpdateLayoutFinish {
+                listViewRef?.view?.scrollToPosition(
+                    index = index,
+                    offset = 0f,
+                    animate = animate
+                )
+            }
+        }
+    }
+
+    // 首次进入页面时滚动到底部
+    if (listOptions.autoScrollToBottom && messageList().isNotEmpty()) {
+        scrollToBottom(false)
+    }
 
     // ========== 根容器 ==========
     View {
         attr {
             flex(1f)
-            backgroundColor(Color(cfg.backgroundColor))
+            backgroundColor(Color(theme.backgroundColor))
             flexDirection(FlexDirection.COLUMN)
         }
 
         // ========== 顶部导航栏 ==========
         if (cfg.showNavigationBar) {
-            if (cfg.navigationBar != null) {
-                // Slot: 自定义导航栏
-                cfg.navigationBar!!.invoke(this@View, cfg)
+            if (slots.navigationBar != null) {
+                slots.navigationBar!!.invoke(this@View, cfg)
             } else {
-                // 默认导航栏
                 ChatNavigationBar {
                     attr {
                         title = cfg.title
                         showBackButton = cfg.showBackButton
-                        primaryColor = cfg.primaryColor
-                        primaryGradientEndColor = cfg.primaryGradientEndColor
+                        primaryColor = theme.primaryColor
+                        primaryGradientEndColor = theme.primaryGradientEndColor
                     }
                     event {
                         onBackClick = cfg.onBackClick
-                        onTrailingClick = null  // 导航栏右侧通过 slot 实现
+                        onTrailingClick = null
                     }
                 }
-                // 导航栏右侧操作按钮 Slot（叠加在导航栏上方）
-                // 注意：这里不使用 slot 叠加方式，而是通过 ChatNavigationBar 的 trailing slot 传入
             }
         }
 
@@ -91,8 +129,8 @@ fun ViewContainer<*, *>.ChatSession(
                 flex(1f)
             }
 
-            // 背景图层（绝对定位铺满）
-            if (cfg.backgroundImage.isNotEmpty()) {
+            // 背景图层
+            if (theme.backgroundImage.isNotEmpty()) {
                 Image {
                     attr {
                         positionAbsolute()
@@ -100,139 +138,389 @@ fun ViewContainer<*, *>.ChatSession(
                         left(0f)
                         right(0f)
                         bottom(0f)
-                        src(cfg.backgroundImage)
+                        src(theme.backgroundImage)
                         resizeCover()
                     }
                 }
             }
 
-            // 消息列表
             List {
-                // 保存 List 引用
                 ref { listViewRef = it }
 
                 attr {
                     flex(1f)
-                    flexDirection(FlexDirection.COLUMN)
                 }
 
-                // 自动滚动到底部：监听内容尺寸变化
-                if (cfg.autoScrollToBottom) {
-                    event {
-                        contentSizeChanged { _, contentHeight ->
-                            val viewHeight = listViewRef?.view?.flexNode?.layoutFrame?.height ?: 0f
-                            val scrollY = contentHeight - viewHeight
-                            if (scrollY > 0) {
-                                listViewRef?.view?.setContentOffset(0f, scrollY, true)
-                            }
-                        }
+                event {
+                    scrollEnd { params ->
+                        atBottom = params.offsetY + params.viewHeight + 10 >= params.contentHeight
                     }
                 }
 
-                // vfor 闭包内必须有且仅有一个子节点，
-                // 用 View 包一层确保满足约束，slot 的 container 传内部上下文而非 this@List。
-                vfor(messageList) { message ->
+                vforLazy(messageList) { message, index, count ->
+                    // 在最后一项渲染时检测是否需要自动滚动到底部
+                    if (listOptions.autoScrollToBottom && index == count - 1) {
+                        checkAutoScroll()
+                    }
+
+                    // 构建消息上下文（参考 Stream Chat 的 MessageItemState）
+                    val msgContext = ChatMessageHelper.buildMessageContext(
+                        messages = messageList(),
+                        index = index,
+                        groupingInterval = listOptions.messageGroupingInterval
+                    )
+
                     View itemRoot@{
-                        if (message.type == MessageType.SYSTEM) {
-                            // ---- 系统消息 ----
-                            if (cfg.systemMessage != null) {
-                                cfg.systemMessage!!.invoke(this@itemRoot, message, cfg)
-                            } else {
-                                ChatSystemMessage {
-                                    attr {
-                                        this.message = message.content
+                        // 根据分组信息调整间距（连续同一发送者消息缩小间距）
+                        if (listOptions.enableMessageGrouping && !msgContext.isFirstInGroup && message.type != MessageType.SYSTEM) {
+                            attr {
+                                // 分组内消息间距缩小（2f vs 默认 rowPaddingV）
+                            }
+                        }
+
+                        when (message.type) {
+                            MessageType.SYSTEM -> {
+                                // ---- 系统消息 ----
+                                if (slots.systemMessage != null) {
+                                    slots.systemMessage!!.invoke(this@itemRoot, message, cfg)
+                                } else {
+                                    ChatSystemMessage {
+                                        attr {
+                                            this.message = message.content
+                                        }
                                     }
                                 }
                             }
-                        } else {
-                            // ---- 普通消息气泡 ----
-                            if (cfg.messageBubble != null) {
-                                cfg.messageBubble!!.invoke(this@itemRoot, message, cfg)
-                            } else {
-                                ChatBubble {
-                                    attr {
-                                        content = message.content
-                                        isSelf = message.isSelf
-                                        avatarUrl = message.senderAvatar
-                                        selfAvatarUrl = cfg.selfAvatarUrl
-                                        senderName = if (!message.isSelf && cfg.showSenderName) message.senderName else ""
-                                        primaryColor = cfg.primaryColor
-                                        primaryGradientEndColor = cfg.primaryGradientEndColor
-                                        otherBubbleColor = cfg.otherBubbleColor
-                                        otherTextColor = cfg.otherTextColor
-                                        selfTextColor = cfg.selfTextColor
-                                        showAvatar = cfg.showAvatar
-                                        status = message.status
+                            MessageType.TEXT -> {
+                                // ---- 文本消息（参考 Stream Chat 按类型分发） ----
+                                when {
+                                    slots.messageBubble != null -> {
+                                        // 统一 Slot 优先级最高
+                                        slots.messageBubble!!.invoke(this@itemRoot, msgContext, cfg)
                                     }
-                                    event {
-                                        onClick = {
-                                            cfg.onMessageClick?.invoke(message)
-                                        }
-                                        onLongPress = {
-                                            cfg.onMessageLongPress?.invoke(message)
+                                    slots.textBubble != null -> {
+                                        // 文本类型独立 Slot
+                                        slots.textBubble!!.invoke(this@itemRoot, msgContext, cfg)
+                                    }
+                                    else -> {
+                                        // 默认文本气泡渲染
+                                        renderDefaultBubble(this@itemRoot, msgContext, cfg)
+                                    }
+                                }
+                            }
+                            MessageType.IMAGE -> {
+                                // ---- 图片消息（参考 Stream Chat 的 attachmentFactories） ----
+                                when {
+                                    slots.messageBubble != null -> {
+                                        slots.messageBubble!!.invoke(this@itemRoot, msgContext, cfg)
+                                    }
+                                    slots.imageBubble != null -> {
+                                        slots.imageBubble!!.invoke(this@itemRoot, msgContext, cfg)
+                                    }
+                                    else -> {
+                                        // 默认图片消息渲染
+                                        renderDefaultImageBubble(this@itemRoot, msgContext, cfg)
+                                    }
+                                }
+                            }
+                            MessageType.CUSTOM -> {
+                                // ---- 自定义消息 ----
+                                when {
+                                    slots.messageBubble != null -> {
+                                        slots.messageBubble!!.invoke(this@itemRoot, msgContext, cfg)
+                                    }
+                                    slots.customBubble != null -> {
+                                        slots.customBubble!!.invoke(this@itemRoot, msgContext, cfg)
+                                    }
+                                    else -> {
+                                        // CUSTOM 类型无默认渲染，显示占位提示
+                                        ChatSystemMessage {
+                                            attr {
+                                                this.message = "[不支持的消息类型]"
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
-                    }
-                }
-
-                // 底部留白
-                View {
-                    attr {
-                        height(8f)
                     }
                 }
             }
 
-            // 空消息占位（绝对定位居中）
-            if (messageList().isEmpty()) {
-                View emptyContainer@{
-                    attr {
-                        positionAbsolute()
-                        top(0f)
-                        left(0f)
-                        right(0f)
-                        bottom(0f)
-                        allCenter()
-                    }
-                    if (cfg.emptyView != null) {
-                        cfg.emptyView!!.invoke(this@emptyContainer)
-                    } else {
-                        // 默认空消息占位
-                        Text {
-                            attr {
-                                text("暂无消息")
-                                fontSize(14f)
-                                color(Color(0xFF999999))
-                            }
-                        }
-                    }
-                }
+            // ========== helperContent（参考 Stream Chat MessageList 的 helperContent） ==========
+            // 悬浮在列表上层的辅助内容（如"滚动到底部"按钮）
+            if (slots.helperContent != null) {
+                slots.helperContent!!.invoke(this@messageArea)
             }
         }
+    }
+}
 
-        // ========== 底部输入栏 ==========
-        if (cfg.showInputBar) {
-            if (cfg.inputBar != null) {
-                // Slot: 自定义输入栏
-                cfg.inputBar!!.invoke(this@View) { text ->
-                    cfg.onSendMessage?.invoke(text)
+// ============================
+// 默认渲染函数（内部使用）
+// ============================
+
+/**
+ * 默认文本气泡渲染（支持上下文感知的消息分组）
+ */
+internal fun renderDefaultBubble(
+    container: ViewContainer<*, *>,
+    msgContext: MessageContext,
+    cfg: ChatSessionConfig
+) {
+    val message = msgContext.message
+    val theme = cfg.theme
+    val listOptions = cfg.messageListOptions
+
+    // 分组渲染：只有分组中最后一条消息显示头像（参考 Stream Chat 的 messagePositionHandler）
+    val showAvatarForThis = if (listOptions.enableMessageGrouping) {
+        listOptions.showAvatar && msgContext.isLastInGroup
+    } else {
+        listOptions.showAvatar
+    }
+    // 分组渲染：只有分组中第一条消息显示发送者名称
+    val showNameForThis = if (listOptions.enableMessageGrouping) {
+        !message.isSelf && listOptions.showSenderName && msgContext.isFirstInGroup
+    } else {
+        !message.isSelf && listOptions.showSenderName
+    }
+    // 分组内消息间距缩小
+    val verticalPadding = if (listOptions.enableMessageGrouping && !msgContext.isFirstInGroup) {
+        1f
+    } else {
+        theme.rowPaddingV
+    }
+
+    container.ChatBubble {
+        attr {
+            content = message.content
+            isSelf = message.isSelf
+            avatarUrl = message.senderAvatar
+            selfAvatarUrl = cfg.selfAvatarUrl
+            senderName = if (showNameForThis) message.senderName else ""
+            primaryColor = theme.primaryColor
+            primaryGradientEndColor = theme.primaryGradientEndColor
+            otherBubbleColor = theme.otherBubbleColor
+            otherTextColor = theme.otherTextColor
+            selfTextColor = theme.selfTextColor
+            showAvatar = showAvatarForThis
+            showAvatarPlaceholder = !showAvatarForThis && listOptions.showAvatar
+            status = message.status
+            // 布局配置透传
+            bubbleMaxWidthRatio = theme.bubbleMaxWidthRatio
+            bubblePaddingH = theme.bubblePaddingH
+            bubblePaddingV = theme.bubblePaddingV
+            messageFontSize = theme.messageFontSize
+            messageLineHeight = theme.messageLineHeight
+            avatarSize = theme.avatarSize
+            rowPaddingV = verticalPadding
+            rowPaddingH = theme.rowPaddingH
+            avatarBubbleGap = theme.avatarBubbleGap
+        }
+        event {
+            onClick = {
+                cfg.onMessageClick?.invoke(message)
+            }
+            onLongPress = {
+                cfg.onMessageLongPress?.invoke(message)
+            }
+        }
+    }
+}
+
+/**
+ * 默认图片消息渲染（新增，参考 Stream Chat 的 ImageAttachmentContent）
+ */
+internal fun renderDefaultImageBubble(
+    container: ViewContainer<*, *>,
+    msgContext: MessageContext,
+    cfg: ChatSessionConfig
+) {
+    val message = msgContext.message
+    val theme = cfg.theme
+    val listOptions = cfg.messageListOptions
+
+    // 分组渲染逻辑（与文本气泡一致）
+    val showAvatarForThis = if (listOptions.enableMessageGrouping) {
+        listOptions.showAvatar && msgContext.isLastInGroup
+    } else {
+        listOptions.showAvatar
+    }
+    val showNameForThis = if (listOptions.enableMessageGrouping) {
+        !message.isSelf && listOptions.showSenderName && msgContext.isFirstInGroup
+    } else {
+        !message.isSelf && listOptions.showSenderName
+    }
+    val verticalPadding = if (listOptions.enableMessageGrouping && !msgContext.isFirstInGroup) {
+        1f
+    } else {
+        theme.rowPaddingV
+    }
+
+    // 计算图片显示尺寸
+    val rawWidth = message.extra["width"]?.toFloatOrNull() ?: 0f
+    val rawHeight = message.extra["height"]?.toFloatOrNull() ?: 0f
+    val maxW = theme.imageMaxWidth
+    val maxH = theme.imageMaxHeight
+    val (displayWidth, displayHeight) = if (rawWidth > 0 && rawHeight > 0) {
+        val scale = minOf(maxW / rawWidth, maxH / rawHeight, 1f)
+        (rawWidth * scale) to (rawHeight * scale)
+    } else {
+        maxW to maxH
+    }
+
+    container.apply {
+        View {
+            attr {
+                flexDirectionRow()
+                padding(verticalPadding, theme.rowPaddingH, verticalPadding, theme.rowPaddingH)
+                if (message.isSelf) {
+                    justifyContent(FlexJustifyContent.FLEX_END)
+                } else {
+                    justifyContent(FlexJustifyContent.FLEX_START)
+                }
+            }
+
+            if (!message.isSelf) {
+                // 对方消息：头像在左
+                if (showAvatarForThis) {
+                    View {
+                        attr {
+                            size(theme.avatarSize, theme.avatarSize)
+                            borderRadius(theme.avatarRadius)
+                            backgroundColor(Color(0xFFE8E8E8))
+                            marginTop(2f)
+                        }
+                        Image {
+                            attr {
+                                size(theme.avatarSize, theme.avatarSize)
+                                borderRadius(theme.avatarRadius)
+                                src(message.senderAvatar.ifEmpty { ChatBubbleView.DEFAULT_AVATAR })
+                                resizeCover()
+                            }
+                        }
+                    }
+                } else if (listOptions.showAvatar) {
+                    // 分组内非最后一条：头像占位
+                    View {
+                        attr {
+                            size(theme.avatarSize, theme.avatarSize)
+                        }
+                    }
+                }
+                // 图片内容区
+                View {
+                    attr {
+                        marginLeft(if (listOptions.showAvatar) theme.avatarBubbleGap else 0f)
+                    }
+                    // 发送者名称
+                    if (showNameForThis) {
+                        Text {
+                            attr {
+                                text(message.senderName)
+                                fontSize(12f)
+                                color(Color(0xFF999999))
+                                marginBottom(4f)
+                            }
+                        }
+                    }
+                    // 图片
+                    View {
+                        attr {
+                            size(displayWidth, displayHeight)
+                            borderRadius(theme.imageRadius)
+                            backgroundColor(Color(0xFFE8E8E8))
+                        }
+                        Image {
+                            attr {
+                                size(displayWidth, displayHeight)
+                                borderRadius(theme.imageRadius)
+                                src(message.content)
+                                resizeCover()
+                            }
+                        }
+                        event {
+                            click {
+                                cfg.onMessageClick?.invoke(message)
+                            }
+                            longPress {
+                                cfg.onMessageLongPress?.invoke(message)
+                            }
+                        }
+                    }
                 }
             } else {
-                // 默认输入栏
-                ChatInputBar {
+                // 自己的消息：图片 + 头像在右
+                // 重发按钮
+                if (message.status == MessageStatus.FAILED) {
+                    View {
+                        attr {
+                            size(24f, 24f)
+                            borderRadius(12f)
+                            backgroundColor(Color(0xFFFF4444))
+                            allCenter()
+                            marginRight(6f)
+                            alignSelf(FlexAlign.CENTER)
+                        }
+                        Text {
+                            attr {
+                                text("!")
+                                fontSize(14f)
+                                fontWeightBold()
+                                color(Color.WHITE)
+                            }
+                        }
+                    }
+                }
+                // 图片
+                View {
                     attr {
-                        placeholder = cfg.inputPlaceholder
-                        primaryColor = cfg.primaryColor
-                        primaryGradientEndColor = cfg.primaryGradientEndColor
-                        showSendButton = cfg.showSendButton
-                        sendButtonText = cfg.sendButtonText
+                        size(displayWidth, displayHeight)
+                        borderRadius(theme.imageRadius)
+                        backgroundColor(Color(0xFFE8E8E8))
+                    }
+                    Image {
+                        attr {
+                            size(displayWidth, displayHeight)
+                            borderRadius(theme.imageRadius)
+                            src(message.content)
+                            resizeCover()
+                        }
                     }
                     event {
-                        onSendMessage = { text ->
-                            cfg.onSendMessage?.invoke(text)
+                        click {
+                            cfg.onMessageClick?.invoke(message)
+                        }
+                        longPress {
+                            cfg.onMessageLongPress?.invoke(message)
+                        }
+                    }
+                }
+                // 头像
+                if (showAvatarForThis) {
+                    View {
+                        attr {
+                            size(theme.avatarSize, theme.avatarSize)
+                            borderRadius(theme.avatarRadius)
+                            backgroundColor(Color(0xFFE8E8E8))
+                            marginLeft(theme.avatarBubbleGap)
+                            marginTop(2f)
+                        }
+                        Image {
+                            attr {
+                                size(theme.avatarSize, theme.avatarSize)
+                                borderRadius(theme.avatarRadius)
+                                src(cfg.selfAvatarUrl.ifEmpty { ChatBubbleView.SELF_AVATAR })
+                                resizeCover()
+                            }
+                        }
+                    }
+                } else if (listOptions.showAvatar) {
+                    // 分组内非最后一条：头像占位
+                    View {
+                        attr {
+                            marginLeft(theme.avatarBubbleGap)
+                            size(theme.avatarSize, theme.avatarSize)
                         }
                     }
                 }

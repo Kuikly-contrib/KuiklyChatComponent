@@ -24,6 +24,7 @@
     "console-error": "0.0.4",
     "console-info": "0.0.5",
     "console-warn": "0.0.4",
+    "jsdom": "^29.0.1",
     "koa": "^2.14.1",
     "koa-bodyparser": "^4.3.0",
     "koa-router": "^7.4.0",
