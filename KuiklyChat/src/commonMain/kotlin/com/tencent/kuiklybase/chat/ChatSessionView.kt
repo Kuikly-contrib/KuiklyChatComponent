@@ -506,6 +506,7 @@ internal fun renderDefaultImageBubble(
                         View {
                             attr {
                                 marginLeft(if (listOptions.showAvatar) theme.avatarBubbleGap else 0f)
+                                flexDirection(FlexDirection.COLUMN)
                             }
                             // 图片
                             View {
@@ -544,6 +545,30 @@ internal fun renderDefaultImageBubble(
                                     }
                                 }
                             }
+                            // 置顶标记
+                            if (message.isPinned) {
+                                Text {
+                                    attr {
+                                        text("📌 已置顶")
+                                        fontSize(10f)
+                                        color(Color(0xFF4F8FFF))
+                                        marginTop(2f)
+                                    }
+                                }
+                            }
+                            // 反应栏（图片下方）
+                            if (message.reactions.isNotEmpty()) {
+                                ChatReactionBar {
+                                    attr {
+                                        reactions = message.reactions
+                                    }
+                                    event {
+                                        onReactionClick = { type ->
+                                            cfg.onReactionClick?.invoke(message, type)
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -570,39 +595,69 @@ internal fun renderDefaultImageBubble(
                         }
                     }
                 }
-                // 图片
+                // 图片 + 反应栏
                 View {
-                    ref { imgBubbleRef = it }
                     attr {
-                        size(displayWidth, displayHeight)
-                        borderRadius(theme.imageRadius)
-                        backgroundColor(Color(0xFFE8E8E8))
+                        flexDirection(FlexDirection.COLUMN)
+                        alignItems(FlexAlign.FLEX_END)
                     }
-                    Image {
+                    View {
+                        ref { imgBubbleRef = it }
                         attr {
                             size(displayWidth, displayHeight)
                             borderRadius(theme.imageRadius)
-                            src(message.content)
-                            resizeCover()
+                            backgroundColor(Color(0xFFE8E8E8))
+                        }
+                        Image {
+                            attr {
+                                size(displayWidth, displayHeight)
+                                borderRadius(theme.imageRadius)
+                                src(message.content)
+                                resizeCover()
+                            }
+                        }
+                        event {
+                            click {
+                                cfg.onMessageClick?.invoke(message)
+                            }
+                            longPress {
+                                if (cfg.onMessageLongPressWithPosition != null) {
+                                    imgBubbleRef?.view?.let { view ->
+                                        val frame = view.frame
+                                        val frameInRoot = view.convertFrame(frame, toView = null)
+                                        val correctedY = cfg.correctBubbleY(frameInRoot.y)
+                                        cfg.onMessageLongPressWithPosition?.invoke(
+                                            message, frameInRoot.x, correctedY,
+                                            frameInRoot.width, frameInRoot.height
+                                        )
+                                    } ?: cfg.onMessageLongPress?.invoke(message)
+                                } else {
+                                    cfg.onMessageLongPress?.invoke(message)
+                                }
+                            }
                         }
                     }
-                    event {
-                        click {
-                            cfg.onMessageClick?.invoke(message)
+                    // 置顶标记
+                    if (message.isPinned) {
+                        Text {
+                            attr {
+                                text("📌 已置顶")
+                                fontSize(10f)
+                                color(Color(0xFF4F8FFF))
+                                marginTop(2f)
+                            }
                         }
-                        longPress {
-                            if (cfg.onMessageLongPressWithPosition != null) {
-                                imgBubbleRef?.view?.let { view ->
-                                    val frame = view.frame
-                                    val frameInRoot = view.convertFrame(frame, toView = null)
-                                    val correctedY = cfg.correctBubbleY(frameInRoot.y)
-                                    cfg.onMessageLongPressWithPosition?.invoke(
-                                        message, frameInRoot.x, correctedY,
-                                        frameInRoot.width, frameInRoot.height
-                                    )
-                                } ?: cfg.onMessageLongPress?.invoke(message)
-                            } else {
-                                cfg.onMessageLongPress?.invoke(message)
+                    }
+                    // 反应栏（图片下方）
+                    if (message.reactions.isNotEmpty()) {
+                        ChatReactionBar {
+                            attr {
+                                reactions = message.reactions
+                            }
+                            event {
+                                onReactionClick = { type ->
+                                    cfg.onReactionClick?.invoke(message, type)
+                                }
                             }
                         }
                     }
