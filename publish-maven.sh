@@ -50,8 +50,8 @@ DEFAULT_KUIKLY_CORE_VERSION="2.7.0"
 # publish 任务
 PUBLISH_TASK=publishAllPublicationsToMavenRepository
 
-# ====== 组件模块配置 ======
-MODULE_KMP="KuiklyChatComponent"
+# ====== 组件模块配置（从 gradle.properties 的 MODULE_NAME 读取） ======
+MODULE_KMP=""
 
 # 构建开始时间
 BUILD_START_TIME=0
@@ -100,17 +100,25 @@ if [ -f "${GRADLE_PROPS}" ]; then
       MAVEN_PASSWORD="${PROP_MAVEN_PASS}"
     fi
   fi
+
+  if [ -z "${MODULE_KMP}" ]; then
+    PROP_MODULE_NAME=$(grep '^MODULE_NAME=' "${GRADLE_PROPS}" 2>/dev/null | cut -d'=' -f2 || true)
+    if [ -n "${PROP_MODULE_NAME}" ]; then
+      MODULE_KMP="${PROP_MODULE_NAME}"
+    fi
+  fi
 fi
 
 # ====== 函数定义 ======
 
 function usage() {
   echo ""
-  echo " 发布 KuiklyChatComponent 产物到 Maven 仓库"
+  echo " 发布 ${MODULE_KMP:-组件} 产物到 Maven 仓库"
   echo ""
   echo " Usage: publish-maven.sh [option] <value>"
   echo ""
   echo " Options:"
+  echo "  -n, --module-name   指定组件模块名, 默认读取 gradle.properties 中 MODULE_NAME"
   echo "  -v, --version       指定发布版本号, 默认读取 gradle.properties 中 MAVEN_VERSION"
   echo "  -g, --group-id      指定 Group ID, 默认读取 gradle.properties 中 GROUP_ID"
   echo "  -k, --kotlin        指定编译的 Kotlin 版本列表, 使用 , 分割"
@@ -295,6 +303,10 @@ function publishAll() {
 }
 
 function check_required_config() {
+  if [ -z "${MODULE_KMP}" ]; then
+    log_error "未指定组件模块名! 请在 gradle.properties 中设置 MODULE_NAME 或使用 -n 参数"
+    exit 1
+  fi
   if [ -z "${BASE_VERSION}" ]; then
     log_error "未指定版本号! 请在 gradle.properties 中设置 MAVEN_VERSION 或使用 -v 参数"
     exit 1
@@ -309,6 +321,7 @@ function check_required_config() {
 
 while [[ "$#" -gt 0 ]]; do
   case $1 in
+  -n | --module-name) shift; MODULE_KMP="${1}" ;;
   -v | --version) shift; BASE_VERSION="${1}" ;;
   -g | --group-id) shift; GROUP_ID="${1}" ;;
   -k | --kotlin) shift; KOTLIN_VERSION_LIST="${1}" ;;
@@ -326,7 +339,8 @@ done
 
 # ====== 打印配置信息 ======
 echo ""
-log_info "========== KuiklyChat 发布配置 =========="
+log_info "========== ${MODULE_KMP} 发布配置 =========="
+log_info "组件模块:     ${MODULE_KMP}"
 log_info "版本号:       ${BASE_VERSION}"
 log_info "Group ID:     ${GROUP_ID:-未设置(使用 gradle.properties 配置)}"
 log_info "Kotlin 版本:  ${KOTLIN_VERSION_LIST}"
