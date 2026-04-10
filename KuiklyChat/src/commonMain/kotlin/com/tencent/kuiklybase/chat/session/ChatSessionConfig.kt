@@ -527,6 +527,44 @@ class ChatSessionConfig {
     /** 渲染插槽配置 */
     val slots = ChatSlotOptions()
 
+    // ========== 组件工厂（参考 Stream Chat 的 ChatComponentFactory） ==========
+
+    /**
+     * 全局组件工厂。
+     * 用于替换原子组件（头像、状态指示器、重发按钮等）的默认渲染方式。
+     * 优先级链：Slot API > ComponentFactory > 内置默认渲染。
+     *
+     * 使用方式：
+     * ```kotlin
+     * config.componentFactory = object : DefaultChatComponentFactory() {
+     *     override fun renderAvatar(...) { /* 自定义头像 */ }
+     * }
+     * ```
+     */
+    var componentFactory: ChatComponentFactory = DefaultChatComponentFactory()
+
+    // ========== Handler / Formatter（参考 Stream Chat 的可替换处理器） ==========
+
+    /**
+     * 日期分隔符处理器。
+     * 决定两条消息之间是否需要插入日期分隔符，以及分隔符的文本内容。
+     * 替换后可自定义日期分隔逻辑和格式化。
+     */
+    var dateSeparatorHandler: DateSeparatorHandler = DefaultDateSeparatorHandler()
+
+    /**
+     * 消息分组处理器。
+     * 决定消息在分组中的位置（TOP/MIDDLE/BOTTOM/SINGLE），
+     * 用于控制头像显示、间距缩小等。
+     */
+    var messagePositionHandler: MessagePositionHandler = DefaultMessagePositionHandler()
+
+    /**
+     * 消息文本格式化器。
+     * 用于自定义消息内容的文本渲染（如 Markdown 解析、@提及高亮等）。
+     */
+    var messageTextFormatter: MessageTextFormatter = DefaultMessageTextFormatter()
+
     // ========== 消息渲染工厂（对标 Stream Chat attachmentFactories） ==========
 
     /**
@@ -881,6 +919,36 @@ class ChatSessionConfig {
     /** 消息置顶回调（参数：被置顶/取消置顶的消息） */
     var onPinMessage: ((ChatMessage) -> Unit)? = null
 
+    // ========== 便捷方法：获取消息位置 ==========
+
+    /**
+     * 使用 messagePositionHandler 计算消息在分组中的位置。
+     * 便捷方法，内部使用。
+     */
+    fun getMessagePosition(prev: ChatMessage?, current: ChatMessage, next: ChatMessage?): MessagePosition {
+        return messagePositionHandler.handleMessagePosition(
+            prev, current, next, messageListOptions.messageGroupingInterval
+        )
+    }
+
+    /**
+     * 使用 dateSeparatorHandler 判断是否需要日期分隔符。
+     * 便捷方法，内部使用。
+     */
+    fun shouldShowDateSeparator(prevTimestamp: Long, currentTimestamp: Long): Boolean {
+        return dateSeparatorHandler.shouldAddDateSeparator(
+            prevTimestamp, currentTimestamp, messageListOptions.timeGroupInterval
+        )
+    }
+
+    /**
+     * 使用 dateSeparatorHandler 格式化日期。
+     * 便捷方法，内部使用。
+     */
+    fun formatDateSeparator(timestamp: Long): String {
+        return messageListOptions.timeFormatter?.invoke(timestamp)
+            ?: dateSeparatorHandler.formatDate(timestamp)
+    }
 }
 
 // ============================

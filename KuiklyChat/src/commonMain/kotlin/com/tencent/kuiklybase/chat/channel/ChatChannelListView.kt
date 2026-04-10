@@ -87,10 +87,14 @@ fun ViewContainer<*, *>.ChatChannelList(
                         // 自定义频道项
                         slots.channelItem!!.invoke(this, channel, cfg)
                     } else {
-                        // 默认频道项
+                        // 默认频道项（使用 Handler/Formatter 格式化数据）
+                        // 使用 channelNameFormatter 格式化频道名称
+                        val formattedChannel = channel.copy(
+                            name = cfg.channelNameFormatter.formatChannelName(channel)
+                        )
                         ChatChannelItem {
                             attr {
-                                this.channel = channel
+                                this.channel = formattedChannel
                                 // 应用主题
                                 itemBackgroundColor = theme.itemBackgroundColor
                                 pinnedItemBackgroundColor = theme.pinnedItemBackgroundColor
@@ -118,7 +122,9 @@ fun ViewContainer<*, *>.ChatChannelList(
                                 showUnreadCount = cfg.showUnreadCount
                                 showLastMessage = cfg.showLastMessage
                                 showLastMessageTime = cfg.showLastMessageTime
-                                timeFormatter = cfg.timeFormatter
+                                timeFormatter = cfg.timeFormatter ?: { ts ->
+                                    cfg.timestampFormatter.formatTimestamp(ts)
+                                }
                             }
                             event {
                                 onClick = { cfg.onChannelClick?.invoke(channel) }

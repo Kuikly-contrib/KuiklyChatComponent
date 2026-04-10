@@ -182,6 +182,35 @@ class ChatChannelListConfig {
     /** 渲染插槽配置 */
     val slots = ChannelListSlots()
 
+    // ========== 组件工厂（参考 Stream Chat 的 ChatComponentFactory） ==========
+
+    /**
+     * 全局组件工厂。
+     * 用于替换频道列表中原子组件（头像、未读徽章、在线指示器等）的默认渲染方式。
+     * 优先级链：Slot API > ComponentFactory > 内置默认渲染。
+     */
+    var componentFactory: ChatComponentFactory = DefaultChatComponentFactory()
+
+    // ========== Handler / Formatter（参考 Stream Chat 的可替换处理器） ==========
+
+    /**
+     * 频道名称格式化器。
+     * 用于自定义频道在列表中显示的名称。
+     */
+    var channelNameFormatter: ChannelNameFormatter = DefaultChannelNameFormatter()
+
+    /**
+     * 消息预览文本格式化器。
+     * 用于自定义频道列表中最后一条消息的预览文本。
+     */
+    var messagePreviewFormatter: MessagePreviewFormatter = DefaultMessagePreviewFormatter()
+
+    /**
+     * 时间戳格式化器。
+     * 用于自定义频道列表中时间的显示格式。
+     */
+    var timestampFormatter: TimestampFormatter = DefaultTimestampFormatter()
+
     // ========== DSL 配置方法 ==========
 
     /** DSL 方式配置主题 */
