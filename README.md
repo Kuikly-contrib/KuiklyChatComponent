@@ -13,6 +13,10 @@
   - [ChatMessage（消息模型）](#chatmessage消息模型)
   - [ChatMessageHelper（工具类）](#chatmessagehelper工具类)
   - [MessageRendererFactory（渲染工厂）](#messagerendererfactory渲染工厂)
+  - [ChatComponentFactory（组件工厂）](#chatcomponentfactory组件工厂)
+  - [Handler / Formatter（处理器/格式化器）](#handler--formatter处理器格式化器)
+  - [ChatRepository（数据仓库接口）](#chatrepository数据仓库接口)
+  - [ChatPreviewData（预览/Mock 数据）](#chatpreviewdata预览mock-数据)
 - [主题系统](#主题系统)
 - [Slot 插槽系统](#slot-插槽系统)
 - [内置组件](#内置组件)
@@ -137,6 +141,18 @@ fun ViewContainer<*, *>.ChatSession(
 | `showBackButton` | `Boolean` | `true` | 是否显示返回按钮 |
 | `selfAvatarUrl` | `String` | `""` | 自己的头像 URL |
 | `messageActions` | `List<MessageAction>` | `defaultMessageActions()` | 长按消息的操作菜单项 |
+
+#### 扩展机制配置
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `componentFactory` | `ChatComponentFactory` | `DefaultChatComponentFactory()` | 全局组件工厂，替换原子组件（头像、状态指示器、重发按钮等）的默认渲染 |
+| `dateSeparatorHandler` | `DateSeparatorHandler` | `DefaultDateSeparatorHandler()` | 日期分隔符处理器，控制日期分隔逻辑和格式化 |
+| `messagePositionHandler` | `MessagePositionHandler` | `DefaultMessagePositionHandler()` | 消息分组处理器，控制消息在分组中的位置（TOP/MIDDLE/BOTTOM/SINGLE） |
+| `messageTextFormatter` | `MessageTextFormatter` | `DefaultMessageTextFormatter()` | 消息文本格式化器，自定义消息内容渲染（如 Markdown 解析、@提及高亮） |
+| `messageRenderers` | `MutableList<MessageRendererFactory>` | `mutableListOf()` | 消息渲染器工厂列表，扩展自定义消息类型渲染 |
+
+> **优先级链**：`Slot API` > `ComponentFactory` > `内置默认渲染`
 
 #### MessageComposer 输入框配置
 
@@ -499,6 +515,352 @@ class LocationMessageRenderer : MessageRendererFactory {
 ChatSession({ ctx.messageList }) {
     messageRenderers.add(LocationMessageRenderer())
 }
+```
+
+---
+
+### ChatComponentFactory（组件工厂）
+
+全局可替换的原子组件渲染机制。通过实现 `ChatComponentFactory` 接口，用户可以自定义任何原子组件的渲染方式，而无需为每个使用场景都设置 Slot。
+
+**优先级链**：`Slot API` > `ChatComponentFactory` > `内置默认渲染`
+
+**接口定义**：
+
+```kotlin
+interface ChatComponentFactory {
+    fun renderAvatar(container, avatarUrl, size, radius, placeholderColor, onClick)
+    fun renderAvatarPlaceholder(container, size)
+    fun renderSenderName(container, name, color, fontSize)
+    fun renderMessageStatus(container, status, textColor, errorColor)
+    fun renderResendButton(container, errorColor, onClick)
+    fun renderUnreadBadge(container, count, bgColor, textColor, fontSize)
+    fun renderOnlineIndicator(container, isOnline, color)
+    fun renderPinnedIndicator(container, color)
+    fun renderEditedLabel(container, color)
+    fun renderThreadReplyIndicator(container, threadCount, color, onClick)
+    fun renderFileIcon(container, mimeType, primaryColor)
+}
+```
+
+**默认实现**：`DefaultChatComponentFactory` 提供所有原子组件的默认渲染方式，用户可继承此类并只覆盖需要自定义的方法。
+
+**可替换组件列表**：
+
+| 方法 | 说明 | 适用范围 |
+|------|------|---------|
+| `renderAvatar` | 用户头像渲染 | ChatSession + ChatChannelList |
+| `renderAvatarPlaceholder` | 分组内头像占位 | ChatSession |
+| `renderSenderName` | 发送者名称 | ChatSession |
+| `renderMessageStatus` | 消息状态指示器（发送中/已读/失败） | ChatSession |
+| `renderResendButton` | 重发按钮 | ChatSession |
+| `renderUnreadBadge` | 未读计数徽章 | ChatChannelList |
+| `renderOnlineIndicator` | 在线状态指示器 | ChatChannelList |
+| `renderPinnedIndicator` | 置顶标记 | ChatSession |
+| `renderEditedLabel` | 已编辑标记 | ChatSession |
+| `renderThreadReplyIndicator` | 线程回复入口 | ChatSession |
+| `renderFileIcon` | 文件消息图标 | ChatSession |
+
+**自定义示例**：
+
+```kotlin
+ChatSession({ ctx.messageList }) {
+    componentFactory = object : DefaultChatComponentFactory() {
+        override fun renderAvatar(
+            container: ViewContainer<*, *>,
+            avatarUrl: String,
+            size: Float,
+            radius: Float,
+            placeholderColor: Long,
+            onClick: (() -> Unit)?
+        ) {
+            // 自定义头像：使用圆角方形 + 渐变占位
+            container.apply {
+                View {
+                    attr {
+                        size(size, size)
+                        borderRadius(12f)
+                        backgroundColor(Color(0xFF6C5CE7))
+                        allCenter()
+                    }
+                    if (avatarUrl.isNotEmpty()) {
+                        Image {
+                            attr { size(size, size); borderRadius(12f); src(avatarUrl); resizeCover() }
+                        }
+                    } else {
+                        Text {
+                            attr { text(avatarUrl.take(1)); fontSize(18f); color(Color.WHITE) }
+                        }
+                    }
+                }
+            }
+        }
+
+        override fun renderMessageStatus(
+            container: ViewContainer<*, *>,
+            status: MessageStatus,
+            textColor: Long,
+            errorColor: Long
+        ) {
+            // 自定义消息状态：只显示失败状态
+            if (status == MessageStatus.FAILED) {
+                super.renderMessageStatus(container, status, textColor, errorColor)
+            }
+        }
+    }
+}
+```
+
+ChatChannelList 中同样支持 componentFactory：
+
+```kotlin
+ChatChannelList({ ctx.channelList }) {
+    componentFactory = object : DefaultChatComponentFactory() {
+        override fun renderUnreadBadge(
+            container: ViewContainer<*, *>,
+            count: Int,
+            bgColor: Long,
+            textColor: Long,
+            fontSize: Float
+        ) {
+            // 自定义未读徽章样式
+        }
+    }
+}
+```
+
+---
+
+### Handler / Formatter（可替换处理器）
+
+将格式化、处理逻辑抽象为接口，允许用户替换核心行为策略。
+
+**ChatSession 中的 Handler/Formatter**：
+
+| 接口 | 说明 | 默认实现 |
+|------|------|---------|
+| `DateSeparatorHandler` | 日期分隔符处理器：决定两条消息间是否插入分隔符 + 格式化日期文本 | `DefaultDateSeparatorHandler` |
+| `MessagePositionHandler` | 消息分组处理器：计算消息在分组中的位置（SINGLE/TOP/MIDDLE/BOTTOM） | `DefaultMessagePositionHandler` |
+| `MessageTextFormatter` | 消息文本格式化器：自定义消息内容渲染（如 Markdown 解析、@提及高亮） | `DefaultMessageTextFormatter` |
+
+**ChatChannelList 中的 Formatter**：
+
+| 接口 | 说明 | 默认实现 |
+|------|------|---------|
+| `ChannelNameFormatter` | 频道名称格式化器 | `DefaultChannelNameFormatter` |
+| `MessagePreviewFormatter` | 消息预览文本格式化器 | `DefaultMessagePreviewFormatter` |
+| `TimestampFormatter` | 时间戳格式化器 | `DefaultTimestampFormatter` |
+
+**DateSeparatorHandler 接口**：
+
+```kotlin
+interface DateSeparatorHandler {
+    fun shouldAddDateSeparator(previousTimestamp: Long, currentTimestamp: Long, interval: Long): Boolean
+    fun formatDate(timestamp: Long): String
+}
+```
+
+**MessagePositionHandler 接口**：
+
+```kotlin
+enum class MessagePosition { SINGLE, TOP, MIDDLE, BOTTOM }
+
+interface MessagePositionHandler {
+    fun handleMessagePosition(
+        previousMessage: ChatMessage?,
+        currentMessage: ChatMessage,
+        nextMessage: ChatMessage?,
+        groupingInterval: Long
+    ): MessagePosition
+}
+```
+
+**自定义示例**：
+
+```kotlin
+ChatSession({ ctx.messageList }) {
+    // 自定义日期分隔：使用更紧凑的时间间隔
+    dateSeparatorHandler = object : DateSeparatorHandler {
+        override fun shouldAddDateSeparator(prev: Long, current: Long, interval: Long): Boolean {
+            if (current <= 0L) return false
+            if (prev <= 0L) return true
+            // 不同天的消息一定加分隔符
+            return !isSameDay(prev, current) || (current - prev) >= interval
+        }
+        override fun formatDate(timestamp: Long): String {
+            return formatRelativeTime(timestamp)  // "刚刚"、"5分钟前"、"昨天 14:30" 等
+        }
+    }
+
+    // 自定义消息分组：更宽松的分组策略
+    messagePositionHandler = object : MessagePositionHandler {
+        override fun handleMessagePosition(
+            prev: ChatMessage?, current: ChatMessage, next: ChatMessage?, interval: Long
+        ): MessagePosition {
+            // 群聊中同一个人 5 分钟内的消息归为一组
+            // 1v1 聊天中不分组
+            if (current.type == MessageType.SYSTEM) return MessagePosition.SINGLE
+            val samePrev = prev != null && prev.senderId == current.senderId
+                && current.isSelf == prev.isSelf
+                && (current.timestamp - prev.timestamp) < interval
+            val sameNext = next != null && next.senderId == current.senderId
+                && current.isSelf == next.isSelf
+                && (next.timestamp - current.timestamp) < interval
+            return when {
+                !samePrev && !sameNext -> MessagePosition.SINGLE
+                !samePrev -> MessagePosition.TOP
+                !sameNext -> MessagePosition.BOTTOM
+                else -> MessagePosition.MIDDLE
+            }
+        }
+    }
+
+    // 自定义消息文本格式化：Markdown 解析
+    messageTextFormatter = MessageTextFormatter { message ->
+        parseMarkdown(message.content)  // **粗体** → 粗体, *斜体* → 斜体
+    }
+}
+```
+
+频道列表 Formatter 示例：
+
+```kotlin
+ChatChannelList({ ctx.channelList }) {
+    // 自定义频道名称
+    channelNameFormatter = ChannelNameFormatter { channel ->
+        when (channel.type) {
+            ChannelType.GROUP -> "群聊: ${channel.name}"
+            ChannelType.DIRECT -> channel.name
+            ChannelType.CHANNEL -> "# ${channel.name}"
+        }
+    }
+
+    // 自定义消息预览
+    messagePreviewFormatter = MessagePreviewFormatter { channel, maxLength ->
+        val msg = channel.lastMessage ?: return@MessagePreviewFormatter "暂无消息"
+        val prefix = if (msg.isSelf) "你: " else "${msg.senderName}: "
+        val text = prefix + when (msg.type) {
+            MessageType.IMAGE -> "[图片]"
+            MessageType.FILE -> "[文件] ${msg.content}"
+            else -> msg.content
+        }
+        if (text.length > maxLength) text.take(maxLength) + "..." else text
+    }
+
+    // 自定义时间格式
+    timestampFormatter = TimestampFormatter { timestamp ->
+        formatRelativeTimestamp(timestamp)  // "刚刚"、"2小时前"、"昨天" 等
+    }
+}
+```
+
+---
+
+### ChatRepository（数据仓库接口）
+
+定义聊天组件所需的所有数据操作接口，使组件库**不绑定任何具体后端**。
+
+> Stream Chat 的最大问题是强绑定自己的 ChatClient 后端。KuiklyChat 通过接口抽象解耦，业务方可接入任何数据源。
+
+**接口定义**：
+
+```kotlin
+interface ChatRepository {
+    // 频道操作
+    suspend fun getChannels(limit: Int = 20, offset: Int = 0): ChatChannelsResponse
+    suspend fun getChannel(channelId: String): ChatChannel?
+
+    // 消息操作
+    suspend fun getMessages(channelId: String, limit: Int = 30, before: String? = null): ChatMessagesResponse
+    suspend fun sendMessage(channelId: String, message: ChatMessage): ChatMessage
+    suspend fun editMessage(messageId: String, newContent: String): ChatMessage
+    suspend fun deleteMessage(messageId: String): Boolean
+
+    // 反应操作
+    suspend fun toggleReaction(messageId: String, reactionType: String): ChatMessage
+
+    // 置顶操作
+    suspend fun pinMessage(messageId: String, pinned: Boolean): ChatMessage
+
+    // 输入状态
+    suspend fun sendTypingEvent(channelId: String)
+    suspend fun getTypingUsers(channelId: String): List<String>
+
+    // 频道状态
+    suspend fun markChannelRead(channelId: String)
+    suspend fun muteChannel(channelId: String, muted: Boolean)
+    suspend fun pinChannel(channelId: String, pinned: Boolean)
+    suspend fun deleteChannel(channelId: String): Boolean
+}
+```
+
+**响应封装**：
+
+```kotlin
+data class ChatMessagesResponse(val messages: List<ChatMessage>, val hasMore: Boolean = true)
+data class ChatChannelsResponse(val channels: List<ChatChannel>, val hasMore: Boolean = true)
+```
+
+**使用示例**：
+
+```kotlin
+// 实现自定义数据源
+class FirebaseChatRepository : ChatRepository {
+    override suspend fun getChannels(limit: Int, offset: Int): ChatChannelsResponse {
+        val snapshot = FirebaseFirestore.getInstance()
+            .collection("channels")
+            .orderBy("lastMessageAt", Query.Direction.DESCENDING)
+            .startAfter(offset)
+            .limit(limit.toLong())
+            .get()
+            .await()
+        return ChatChannelsResponse(
+            channels = snapshot.documents.map { it.toChatChannel() },
+            hasMore = snapshot.size() == limit
+        )
+    }
+    // ... 实现其他方法
+}
+
+// 在业务中使用
+val repository: ChatRepository = FirebaseChatRepository()
+val channels = repository.getChannels(limit = 20)
+```
+
+---
+
+### ChatPreviewData（预览 / Mock 数据）
+
+提供用于 Preview、测试和 Demo 的 Mock 数据集合，附带一个开箱即用的 `MockChatRepository` 实现。
+
+**预览数据**：
+
+| API | 返回类型 | 说明 |
+|-----|---------|------|
+| `ChatPreviewData.currentUser` | `ChatChannelMember` | 当前用户（自己） |
+| `ChatPreviewData.users` | `List<ChatChannelMember>` | 5 个预览用户 |
+| `ChatPreviewData.messages(count, channelType)` | `List<ChatMessage>` | 生成指定数量的消息 |
+| `ChatPreviewData.mixedMessages()` | `List<ChatMessage>` | 包含文本/图片/文件/系统消息的混合列表 |
+| `ChatPreviewData.channels()` | `List<ChatChannel>` | 6 个预览频道（单聊/群聊/频道） |
+
+**MockChatRepository**：
+
+基于 `ChatPreviewData` 的 `ChatRepository` 实现，所有数据操作在内存中完成，适合 Demo 和测试：
+
+```kotlin
+val repository: ChatRepository = MockChatRepository()
+
+// 获取频道列表
+val channels = repository.getChannels(limit = 20)
+
+// 获取消息
+val messages = repository.getMessages("ch_1", limit = 30)
+
+// 发送消息
+val sent = repository.sendMessage("ch_1", ChatMessageHelper.createTextMessage("Hello"))
+
+// 切换反应
+val updated = repository.toggleReaction("msg_1", "👍")
 ```
 
 ---
@@ -997,6 +1359,205 @@ message.copy(isDeleted = true)
 message.copy(isPinned = true)
 ```
 
+### 示例 11：自定义 ComponentFactory（全局替换原子组件）
+
+```kotlin
+ChatSession({ ctx.messageList }) {
+    componentFactory = object : DefaultChatComponentFactory() {
+        // 自定义头像：使用圆角方形 + 首字母占位
+        override fun renderAvatar(
+            container: ViewContainer<*, *>,
+            avatarUrl: String,
+            size: Float,
+            radius: Float,
+            placeholderColor: Long,
+            onClick: (() -> Unit)?
+        ) {
+            container.apply {
+                View {
+                    attr {
+                        size(size, size)
+                        borderRadius(4f)
+                        backgroundColor(Color(placeholderColor))
+                        allCenter()
+                    }
+                    if (avatarUrl.isNotEmpty()) {
+                        Image {
+                            attr { size(size, size); borderRadius(4f); src(avatarUrl); resizeCover() }
+                        }
+                    } else {
+                        Text {
+                            attr { text(avatarUrl.take(1)); fontSize(18f); color(Color.WHITE) }
+                        }
+                    }
+                    if (onClick != null) {
+                        event { click { onClick() } }
+                    }
+                }
+            }
+        }
+
+        // 自定义重发按钮：红色圆角矩形样式
+        override fun renderResendButton(
+            container: ViewContainer<*, *>,
+            errorColor: Long,
+            onClick: () -> Unit
+        ) {
+            container.apply {
+                View {
+                    attr {
+                        paddingLeft(8f); paddingRight(8f); height(24f)
+                        borderRadius(4f); backgroundColor(Color(errorColor))
+                        allCenter(); marginRight(6f); alignSelf(FlexAlign.CENTER)
+                    }
+                    Text { attr { text("重发"); fontSize(12f); color(Color.WHITE) } }
+                    event { click { onClick() } }
+                }
+            }
+        }
+    }
+}
+```
+
+### 示例 12：自定义 Handler/Formatter（替换日期分隔和分组逻辑）
+
+```kotlin
+ChatSession({ ctx.messageList }) {
+    // 自定义日期分隔逻辑：每 10 分钟插入分隔符
+    dateSeparatorHandler = object : DateSeparatorHandler {
+        override fun shouldAddDateSeparator(
+            previousTimestamp: Long,
+            currentTimestamp: Long,
+            interval: Long
+        ): Boolean {
+            if (currentTimestamp <= 0L) return false
+            if (previousTimestamp <= 0L) return true
+            return (currentTimestamp - previousTimestamp) >= 10 * 60 * 1000L
+        }
+
+        override fun formatDate(timestamp: Long): String {
+            // 使用自定义日期格式
+            return myDateFormatHelper.format(timestamp)
+        }
+    }
+
+    // 自定义消息分组策略：群聊中按发送者分组，1v1 不分组
+    messagePositionHandler = object : MessagePositionHandler {
+        override fun handleMessagePosition(
+            previousMessage: ChatMessage?,
+            currentMessage: ChatMessage,
+            nextMessage: ChatMessage?,
+            groupingInterval: Long
+        ): MessagePosition {
+            if (currentMessage.type == MessageType.SYSTEM) return MessagePosition.SINGLE
+            // 所有消息都不分组（每条都显示头像）
+            return MessagePosition.SINGLE
+        }
+    }
+
+    // 自定义消息文本格式化（如 Markdown 解析）
+    messageTextFormatter = MessageTextFormatter { message ->
+        markdownParser.render(message.content)
+    }
+}
+```
+
+### 示例 13：频道列表自定义 Formatter
+
+```kotlin
+ChatChannelList({ ctx.channelList }) {
+    // 自定义频道名称：群聊添加成员数前缀
+    channelNameFormatter = ChannelNameFormatter { channel ->
+        when (channel.type) {
+            ChannelType.GROUP -> "${channel.memberCount}人群: ${channel.name}"
+            ChannelType.DIRECT -> channel.name
+            else -> "#${channel.name}"
+        }
+    }
+
+    // 自定义消息预览文本
+    messagePreviewFormatter = MessagePreviewFormatter { channel, maxLength ->
+        val lastMsg = channel.lastMessage ?: return@MessagePreviewFormatter ""
+        when (lastMsg.type) {
+            MessageType.IMAGE -> "[图片]"
+            MessageType.FILE -> "[文件] ${lastMsg.content}"
+            MessageType.VIDEO -> "[视频]"
+            else -> lastMsg.content.take(maxLength)
+        }
+    }
+
+    // 自定义时间戳格式化
+    timestampFormatter = TimestampFormatter { timestamp ->
+        relativeTimeFormatter.format(timestamp)  // "刚刚"、"5分钟前"、"昨天" 等
+    }
+
+    // 自定义频道列表组件工厂
+    componentFactory = object : DefaultChatComponentFactory() {
+        override fun renderUnreadBadge(
+            container: ViewContainer<*, *>,
+            count: Int,
+            bgColor: Long,
+            textColor: Long,
+            fontSize: Float
+        ) {
+            // 自定义未读徽章样式（如用红点代替数字）
+            if (count > 0) {
+                container.apply {
+                    View {
+                        attr { size(8f, 8f); borderRadius(4f); backgroundColor(Color(bgColor)) }
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+### 示例 14：使用 ChatRepository 接入自定义后端
+
+```kotlin
+// 1. 实现自己的数据仓库
+class MyApiChatRepository : ChatRepository {
+    private val api = MyChatApi()
+
+    override suspend fun getChannels(limit: Int, offset: Int): ChatChannelsResponse {
+        val response = api.getChannels(limit, offset)
+        return ChatChannelsResponse(
+            channels = response.channels.map { it.toChatChannel() },
+            hasMore = response.hasMore
+        )
+    }
+
+    override suspend fun getMessages(channelId: String, limit: Int, before: String?): ChatMessagesResponse {
+        val response = api.getMessages(channelId, limit, before)
+        return ChatMessagesResponse(
+            messages = response.messages.map { it.toChatMessage() },
+            hasMore = response.hasMore
+        )
+    }
+
+    override suspend fun sendMessage(channelId: String, message: ChatMessage): ChatMessage {
+        return api.sendMessage(channelId, message).toChatMessage()
+    }
+
+    // ... 实现其他接口方法
+}
+
+// 2. 使用 MockChatRepository 快速搭建 Demo
+class ChatDemoPage : BasePager() {
+    private val repository: ChatRepository = MockChatRepository()
+
+    override fun body(): ViewBuilder {
+        return {
+            // 使用 PreviewData 生成演示数据
+            val channels = ChatPreviewData.channels()
+            val messages = ChatPreviewData.mixedMessages()
+            // ...
+        }
+    }
+}
+```
+
 ---
 
 ## 发布到 Maven
@@ -1083,18 +1644,38 @@ composerSafeAreaBottom = ctx.pagerData.safeAreaInsets.bottom
 
 ```
 KuiklyChat/src/commonMain/kotlin/com/tencent/kuiklybase/chat/
-  ChatMessage.kt               — 数据模型（ChatMessage / MessageType / MessageStatus / ReactionItem / Attachment / MessageAction / MessageContext / ChatMessageHelper）
-  ChatSessionConfig.kt         — 配置类（ChatSessionConfig / ChatThemeOptions / MessageListOptions / ChatSlotOptions / MessageComposerState / 所有 Slot 类型别名）
-  ChatTheme.kt                 — 主题系统（ChatThemeMode / ChatThemeColors / LightThemeColors / DarkThemeColors）
-  ChatSessionView.kt           — ChatSession 入口 + 消息列表渲染 + 加载历史 + 位置补偿 + 自动滚动
-  ChatBubbleView.kt            — ChatBubble 气泡组件 + ChatSystemMessage 系统消息组件
-  ChatNavigationBarView.kt     — ChatNavigationBar 导航栏组件
-  ChatMessageComposerView.kt   — ChatMessageComposer 输入框组件（5-Slot 架构）
-  ChatMessageOptionsView.kt    — ChatMessageOptions 操作菜单组件（模糊背景 + 镂空 + 动画）
-  ChatDateSeparatorView.kt     — ChatDateSeparator 日期分隔符组件
-  ChatTypingIndicatorView.kt   — ChatTypingIndicator 输入指示器组件（三点跳动动画）
-  ChatReactionBarView.kt       — ChatReactionBar 反应栏组件
-  MessageRendererFactory.kt    — 渲染工厂接口 + 5 个内置渲染器
+  model/
+    ChatMessage.kt               — 数据模型（ChatMessage / MessageType / MessageStatus / ReactionItem / Attachment / MessageAction / MessageContext / ChatMessageHelper）
+    ChatChannel.kt               — 频道数据模型（ChatChannel / ChannelType / ChatChannelMember / ChatChannelHelper）
+    ChatComponentFactory.kt      — 组件工厂接口 + DefaultChatComponentFactory 默认实现
+    ChatHandlers.kt              — 可替换处理器接口（DateSeparatorHandler / MessagePositionHandler / ChannelNameFormatter / MessagePreviewFormatter / MessageTextFormatter / TimestampFormatter）+ 默认实现
+    ChatRepository.kt            — 数据仓库接口（ChatRepository / ChatMessagesResponse / ChatChannelsResponse）
+    ChatPreviewData.kt           — 预览/Mock 数据（ChatPreviewData / MockChatRepository）
+    ChatTheme.kt                 — 主题系统（ChatThemeMode / ChatThemeColors / LightThemeColors / DarkThemeColors）
+  session/
+    ChatSessionConfig.kt         — 配置类（ChatSessionConfig / ChatThemeOptions / MessageListOptions / ChatSlotOptions / MessageComposerState / 所有 Slot 类型别名）
+    ChatSessionView.kt           — ChatSession 入口 + 消息列表渲染 + 加载历史 + 位置补偿 + 自动滚动
+  bubble/
+    ChatBubbleView.kt            — ChatBubble 气泡组件 + ChatSystemMessage 系统消息组件
+    MessageRendererFactory.kt    — 渲染工厂接口 + 5 个内置渲染器
+    ChatMessageOptionsView.kt    — ChatMessageOptions 操作菜单组件（模糊背景 + 镂空 + 动画）
+    ChatReactionBarView.kt       — ChatReactionBar 反应栏组件
+  channel/
+    ChatChannelListConfig.kt     — 频道列表配置类（ChannelListTheme / ChannelListSlots / ChatChannelListConfig）
+    ChatChannelListView.kt       — ChatChannelList 频道列表组件
+    ChatChannelHeaderView.kt     — ChatChannelHeaderView 频道列表导航栏组件
+    ChatChannelItemView.kt       — ChatChannelItemView 频道项组件
+    ChatChannelMemberView.kt     — ChatChannelMemberView 频道成员组件
+  composer/
+    ChatMessageComposerView.kt   — ChatMessageComposer 输入框组件（5-Slot 架构）
+  indicator/
+    ChatDateSeparatorView.kt     — ChatDateSeparator 日期分隔符组件
+    ChatTypingIndicatorView.kt   — ChatTypingIndicator 输入指示器组件（三点跳动动画）
+  navigation/
+    ChatNavigationBarView.kt     — ChatNavigationBar 导航栏组件
+  ai/
+    AiMessageTextView.kt         — AI 消息文本组件（Markdown 渲染 + 流式打字效果）
+    ChatAiTypingIndicatorView.kt — AI 输入指示器组件
 ```
 
 ---
