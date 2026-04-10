@@ -1,10 +1,11 @@
-package com.tencent.kuiklybase.chat
+package com.tencent.kuiklybase.chat.bubble
 
 import com.tencent.kuikly.core.base.*
 import com.tencent.kuikly.core.layout.FlexAlign
 import com.tencent.kuikly.core.layout.FlexWrap
 import com.tencent.kuikly.core.reactive.handler.*
 import com.tencent.kuikly.core.views.*
+import com.tencent.kuiklybase.chat.model.*
 
 // ============================
 // 消息反应栏组件

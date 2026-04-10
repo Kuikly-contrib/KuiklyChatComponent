@@ -2,7 +2,7 @@ package com.kuikly.kuiklychat
 
 import com.tencent.kuikly.core.nvi.serialization.json.JSONArray
 import com.tencent.kuikly.core.nvi.serialization.json.JSONObject
-import com.tencent.kuiklybase.chat.*
+import com.tencent.kuiklybase.chat.model.*
 
 /**
  * 聊天消息 JSON 解析器

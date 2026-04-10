@@ -1,8 +1,9 @@
-package com.tencent.kuiklybase.chat
+package com.tencent.kuiklybase.chat.indicator
 
 import com.tencent.kuikly.core.base.*
 import com.tencent.kuikly.core.reactive.handler.*
 import com.tencent.kuikly.core.views.*
+import com.tencent.kuiklybase.chat.model.DEFAULT_TIME_GROUP_INTERVAL
 
 // ============================
 // 日期分隔符组件

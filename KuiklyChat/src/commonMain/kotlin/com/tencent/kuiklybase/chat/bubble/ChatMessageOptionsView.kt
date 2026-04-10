@@ -1,4 +1,4 @@
-package com.tencent.kuiklybase.chat
+package com.tencent.kuiklybase.chat.bubble
 
 import com.tencent.kuikly.core.base.*
 import com.tencent.kuikly.core.base.event.layoutFrameDidChange
@@ -9,6 +9,7 @@ import com.tencent.kuikly.core.reactive.handler.*
 import com.tencent.kuikly.core.timer.setTimeout
 import com.tencent.kuikly.core.views.*
 import com.tencent.kuikly.core.views.Blur
+import com.tencent.kuiklybase.chat.model.*
 
 // ============================
 // 消息操作菜单组件

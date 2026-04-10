@@ -1,7 +1,9 @@
-package com.tencent.kuiklybase.chat
+package com.tencent.kuiklybase.chat.session
 
 import com.tencent.kuikly.core.base.ViewContainer
 import com.tencent.kuikly.core.reactive.collection.ObservableList
+import com.tencent.kuiklybase.chat.model.*
+import com.tencent.kuiklybase.chat.bubble.MessageRendererFactory
 
 // ============================
 // Slot 类型定义（参考 Stream Chat Compose 的 Slot API 设计）

@@ -1,6 +1,11 @@
-package com.tencent.kuiklybase.chat
+package com.tencent.kuiklybase.chat.bubble
 
 import com.tencent.kuikly.core.base.ViewContainer
+import com.tencent.kuiklybase.chat.model.*
+import com.tencent.kuiklybase.chat.session.ChatSessionConfig
+import com.tencent.kuiklybase.chat.session.renderDefaultBubble
+import com.tencent.kuiklybase.chat.session.renderDefaultImageBubble
+import com.tencent.kuiklybase.chat.session.renderDefaultFileBubble
 
 /**
  * 消息渲染工厂接口（对标 Stream Chat 的 AttachmentFactory）

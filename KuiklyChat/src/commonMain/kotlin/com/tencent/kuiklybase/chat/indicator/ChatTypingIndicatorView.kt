@@ -1,4 +1,4 @@
-package com.tencent.kuiklybase.chat
+package com.tencent.kuiklybase.chat.indicator
 
 import com.tencent.kuikly.core.base.*
 import com.tencent.kuikly.core.layout.FlexAlign

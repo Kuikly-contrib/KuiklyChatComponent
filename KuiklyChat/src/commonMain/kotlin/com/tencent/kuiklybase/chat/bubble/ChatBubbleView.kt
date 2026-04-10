@@ -1,4 +1,4 @@
-package com.tencent.kuiklybase.chat
+package com.tencent.kuiklybase.chat.bubble
 
 import com.tencent.kuikly.core.base.*
 import com.tencent.kuikly.core.layout.FlexAlign
@@ -6,6 +6,7 @@ import com.tencent.kuikly.core.layout.FlexJustifyContent
 import com.tencent.kuikly.core.reactive.handler.*
 import com.tencent.kuikly.core.views.*
 import com.tencent.kuikly.core.views.layout.Column
+import com.tencent.kuiklybase.chat.model.*
 
 // ============================
 // 系统消息组件（时间提示、系统通知等）

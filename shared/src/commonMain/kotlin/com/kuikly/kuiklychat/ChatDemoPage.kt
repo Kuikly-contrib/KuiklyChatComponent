@@ -9,7 +9,8 @@ import com.tencent.kuikly.core.timer.setTimeout
 import com.tencent.kuikly.core.views.*
 import com.kuikly.kuiklychat.base.BasePager
 import com.kuikly.kuiklychat.base.BridgeModule
-import com.tencent.kuiklybase.chat.*
+import com.tencent.kuiklybase.chat.model.*
+import com.tencent.kuiklybase.chat.session.*
 
 /**
  * 聊天组件 Demo 页面

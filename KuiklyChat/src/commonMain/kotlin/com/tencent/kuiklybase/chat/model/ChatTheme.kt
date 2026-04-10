@@ -1,4 +1,4 @@
-package com.tencent.kuiklybase.chat
+package com.tencent.kuiklybase.chat.model
 
 /**
  * 主题模式枚举（对标 Stream Chat 的 ChatTheme 双色系支持）

@@ -1,4 +1,4 @@
-package com.tencent.kuiklybase.chat
+package com.tencent.kuiklybase.chat.session
 
 import com.tencent.kuikly.core.base.*
 import com.tencent.kuikly.core.directives.scrollToPosition
@@ -10,6 +10,11 @@ import com.tencent.kuikly.core.layout.FlexJustifyContent
 import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.reactive.handler.*
 import com.tencent.kuikly.core.views.*
+import com.tencent.kuiklybase.chat.model.*
+import com.tencent.kuiklybase.chat.bubble.*
+import com.tencent.kuiklybase.chat.composer.*
+import com.tencent.kuiklybase.chat.indicator.*
+import com.tencent.kuiklybase.chat.navigation.*
 
 
 /**

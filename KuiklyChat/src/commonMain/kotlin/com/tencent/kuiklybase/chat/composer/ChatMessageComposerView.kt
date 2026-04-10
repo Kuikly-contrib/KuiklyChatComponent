@@ -1,9 +1,11 @@
-package com.tencent.kuiklybase.chat
+package com.tencent.kuiklybase.chat.composer
 
 import com.tencent.kuikly.core.base.*
 import com.tencent.kuikly.core.layout.FlexAlign
 import com.tencent.kuikly.core.layout.FlexDirection
 import com.tencent.kuikly.core.views.*
+import com.tencent.kuiklybase.chat.session.ChatSessionConfig
+import com.tencent.kuiklybase.chat.session.MessageComposerState
 
 /**
  * ChatMessageComposer - 消息输入框组件（参考 Stream Chat Compose 的 MessageComposer）
