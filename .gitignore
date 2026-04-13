@@ -8,7 +8,7 @@
 /captures
 .externalNativeBuild
 .cxx
-local.properties
+/androidApp/local.properties
 *.so
 *.js
 node_modules
