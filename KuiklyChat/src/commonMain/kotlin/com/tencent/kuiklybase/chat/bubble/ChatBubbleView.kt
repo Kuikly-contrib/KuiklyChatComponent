@@ -145,7 +145,7 @@ class ChatBubbleView : ComposeView<ChatBubbleAttr, ChatBubbleEvent>() {
                             Column {
                                 attr {
                                     marginLeft(if (ctx.attr.showAvatar || ctx.attr.showAvatarPlaceholder) ctx.attr.avatarBubbleGap else 0f)
-                                    width(bubbleMaxWidth)
+                                    maxWidth(bubbleMaxWidth)
                                     alignItems(FlexAlign.FLEX_START)
                                 }
                                 // 消息气泡
@@ -160,9 +160,6 @@ class ChatBubbleView : ComposeView<ChatBubbleAttr, ChatBubbleEvent>() {
                                     }
                                     // P0: 引用回复块（在正文之前显示被引用的消息）
                                     if (ctx.attr.quotedMessageContent.isNotEmpty()) {
-                                        // 引用块需要确定宽度让内部 Text 换行
-                                        // 宽度 = 气泡最大宽度 - 气泡左右 padding
-                                        val quoteBlockWidth = bubbleMaxWidth - ctx.attr.bubblePaddingH * 2
                                         View {
                                             attr {
                                                 flexDirectionRow()
@@ -170,7 +167,7 @@ class ChatBubbleView : ComposeView<ChatBubbleAttr, ChatBubbleEvent>() {
                                                 borderRadius(6f)
                                                 padding(6f, 8f, 6f, 8f)
                                                 marginBottom(6f)
-                                                width(quoteBlockWidth)
+                                                maxWidth(bubbleMaxWidth - ctx.attr.bubblePaddingH * 2)
                                             }
                                             // 引用竖线
                                             View {
@@ -220,6 +217,15 @@ class ChatBubbleView : ComposeView<ChatBubbleAttr, ChatBubbleEvent>() {
                                                 lineHeight(ctx.attr.messageLineHeight)
                                             }
                                         }
+                                    } else if (ctx.attr.fileName.isNotEmpty()) {
+                                        ctx.attr.componentFactory.renderFileCardContent(
+                                            this@View,
+                                            ctx.attr.fileName,
+                                            ctx.attr.fileSize,
+                                            ctx.attr.fileMimeType,
+                                            ctx.attr.otherTextColor,
+                                            ctx.attr.readReceiptColor
+                                        )
                                     } else {
                                         Text {
                                             attr {
@@ -343,7 +349,7 @@ class ChatBubbleView : ComposeView<ChatBubbleAttr, ChatBubbleEvent>() {
 
                     Column {
                         attr {
-                            width(bubbleMaxWidth)
+                            maxWidth(bubbleMaxWidth)
                             alignItems(FlexAlign.FLEX_END)
                         }
                         // 消息气泡（渐变色）
@@ -362,8 +368,6 @@ class ChatBubbleView : ComposeView<ChatBubbleAttr, ChatBubbleEvent>() {
                             }
                             // P0: 引用回复块（自己发送的引用）
                             if (ctx.attr.quotedMessageContent.isNotEmpty()) {
-                                // 引用块需要确定宽度让内部 Text 换行
-                                val quoteBlockWidth = bubbleMaxWidth - ctx.attr.bubblePaddingH * 2
                                 View {
                                     attr {
                                         flexDirectionRow()
@@ -371,7 +375,7 @@ class ChatBubbleView : ComposeView<ChatBubbleAttr, ChatBubbleEvent>() {
                                         borderRadius(6f)
                                         padding(6f, 8f, 6f, 8f)
                                         marginBottom(6f)
-                                        width(quoteBlockWidth)
+                                        maxWidth(bubbleMaxWidth - ctx.attr.bubblePaddingH * 2)
                                     }
                                     // 引用竖线
                                     View {
@@ -421,6 +425,15 @@ class ChatBubbleView : ComposeView<ChatBubbleAttr, ChatBubbleEvent>() {
                                         lineHeight(ctx.attr.messageLineHeight)
                                     }
                                 }
+                            } else if (ctx.attr.fileName.isNotEmpty()) {
+                                ctx.attr.componentFactory.renderFileCardContent(
+                                    this@View,
+                                    ctx.attr.fileName,
+                                    ctx.attr.fileSize,
+                                    ctx.attr.fileMimeType,
+                                    ctx.attr.selfTextColor,
+                                    0xCCFFFFFF
+                                )
                             } else {
                                 Text {
                                     attr {
@@ -664,6 +677,18 @@ class ChatBubbleAttr : ComposeAttr() {
     // ---------- P1: 线程回复属性 ----------
     /** 线程回复数量（> 0 时显示"N 条回复"入口） */
     var threadCount: Int by observable(0)
+
+    // ---------- 文件消息属性 ----------
+    /** 文件名（非空时渲染文件卡片而非文本） */
+    var fileName: String by observable("")
+    /** 文件大小（字节） */
+    var fileSize: Long by observable(0L)
+    /** 文件 MIME 类型 */
+    var fileMimeType: String by observable("")
+
+    // ---------- 组件工厂 ----------
+    /** 组件工厂（用于渲染文件卡片等自定义内容） */
+    var componentFactory: ChatComponentFactory by observable(DefaultChatComponentFactory())
 }
 
 class ChatBubbleEvent : ComposeEvent() {

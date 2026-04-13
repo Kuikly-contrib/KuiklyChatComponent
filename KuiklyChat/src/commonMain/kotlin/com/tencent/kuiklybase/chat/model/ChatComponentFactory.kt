@@ -183,6 +183,25 @@ interface ChatComponentFactory {
         mimeType: String,
         primaryColor: Long
     )
+
+    /**
+     * 渲染文件卡片内容（文件图标 + 文件名 + 大小，在气泡内部使用）
+     *
+     * @param container 父容器
+     * @param fileName 文件名
+     * @param fileSize 文件大小（字节）
+     * @param mimeType 文件 MIME 类型
+     * @param fileNameColor 文件名文字颜色
+     * @param fileSizeColor 文件大小文字颜色
+     */
+    fun renderFileCardContent(
+        container: ViewContainer<*, *>,
+        fileName: String,
+        fileSize: Long,
+        mimeType: String,
+        fileNameColor: Long,
+        fileSizeColor: Long
+    )
 }
 
 // ============================
@@ -481,6 +500,50 @@ open class DefaultChatComponentFactory : ChatComponentFactory {
             }
         }
     }
+
+    override fun renderFileCardContent(
+        container: ViewContainer<*, *>,
+        fileName: String,
+        fileSize: Long,
+        mimeType: String,
+        fileNameColor: Long,
+        fileSizeColor: Long
+    ) {
+        container.apply {
+            View {
+                attr {
+                    flexDirectionRow()
+                    alignItems(FlexAlign.CENTER)
+                }
+                renderFileIcon(this@apply, mimeType, 0xFF4F8FFF)
+                View {
+                    attr {
+                        flex(1f)
+                        flexDirection(FlexDirection.COLUMN)
+                        minWidth(0f)
+                    }
+                    Text {
+                        attr {
+                            text(fileName)
+                            fontSize(14f)
+                            color(Color(fileNameColor))
+                            lines(2)
+                        }
+                    }
+                    if (fileSize > 0) {
+                        Text {
+                            attr {
+                                text(formatFileSize(fileSize))
+                                fontSize(11f)
+                                color(Color(fileSizeColor))
+                                marginTop(2f)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 // ============================
@@ -501,5 +564,15 @@ private fun getFileStyle(mimeType: String): FileStyle {
         mimeType.contains("zip") || mimeType.contains("rar") || mimeType.contains("tar") -> FileStyle("ZIP", 0xFF7C8894)
         mimeType.startsWith("text/") -> FileStyle("TXT", 0xFF8E8E93)
         else -> FileStyle("FILE", 0xFF8E8E93)
+    }
+}
+
+internal fun formatFileSize(bytes: Long): String {
+    if (bytes <= 0) return ""
+    return when {
+        bytes < 1024 -> "${bytes} B"
+        bytes < 1024 * 1024 -> "${(bytes / 1024.0 * 10).toLong() / 10.0} KB"
+        bytes < 1024 * 1024 * 1024 -> "${(bytes / (1024.0 * 1024.0) * 10).toLong() / 10.0} MB"
+        else -> "${(bytes / (1024.0 * 1024.0 * 1024.0) * 10).toLong() / 10.0} GB"
     }
 }

@@ -1,9 +1,11 @@
 # KuiklyChat
 
-基于 [KuiklyUI](https://github.com/Tencent-TDS/KuiklyUI) 跨端框架构建的聊天 UI 组件库，支持 Android、iOS、鸿蒙、H5 多端运行。
+基于 [KuiklyUI](https://github.com/Tencent-TDS/KuiklyUI) 跨端框架构建的聊天 UI 组件库，支持 Android、iOS、鸿蒙多端运行。
 
 <div align="center">
-  <img src="assets/chat.png" alt="聊天界面示例" width="300">
+  <img src="assets/chat.png" alt="聊天界面" width="220">
+  <img src="assets/channel.png" alt="频道列表" width="220">
+  <img src="assets/ai_chat.png" alt="AI 聊天" width="220">
 </div>
 
 ## 接入指南
@@ -49,46 +51,6 @@ kotlin {
             dependencies {
                 // KuiklyChat 聊天组件
                 implementation("com.tencent.kuiklybase:KuiklyChat:1.0.0-2.0.21-KBA-010")
-            }
-        }
-    }
-}
-```
-
-### 3. 导入包
-
-```kotlin
-import com.tencent.kuiklybase.chat.*
-```
-
-### 4. 最小化示例
-
-```kotlin
-@Page("chat")
-class MyChatPage : BasePager() {
-
-    var messageList by observableList<ChatMessage>()
-
-    override fun body(): ViewBuilder {
-        val ctx = this
-        return {
-            View {
-                attr { flex(1f); flexDirection(FlexDirection.COLUMN) }
-
-                ChatSession({ ctx.messageList }) {
-                    title = "聊天"
-                    showMessageComposer = true
-                    composerSafeAreaBottom = ctx.pagerData.safeAreaInsets.bottom
-                    onSendMessage = { text ->
-                        ctx.messageList.add(
-                            ChatMessageHelper.createTextMessage(
-                                content = text,
-                                isSelf = true,
-                                senderName = "我"
-                            )
-                        )
-                    }
-                }
             }
         }
     }
@@ -881,10 +843,6 @@ val channels = repository.getChannels(limit = 20)
 
 频道/会话列表组件，展示用户的所有聊天频道，支持搜索、未读计数、在线状态等。
 
-<div align="center">
-  <img src="assets/channel.png" alt="频道列表示例" width="300">
-</div>
-
 **函数签名**：
 
 ```kotlin
@@ -1259,20 +1217,6 @@ container.ChatTypingIndicator {
 }
 ```
 
-### ChatReactionBar — 反应栏
-
-```kotlin
-container.ChatReactionBar {
-    attr {
-        reactions = listOf(ReactionItem("👍", 3, true), ReactionItem("❤️", 1, false))
-        bgColor = 0xFFF0F0F0
-        highlightBgColor = 0xFFE3F2FD
-    }
-    event {
-        onReactionClick = { type -> /* 处理点击 */ }
-    }
-}
-```
 
 ### ChatSystemMessage — 系统消息
 
@@ -1287,10 +1231,6 @@ container.ChatSystemMessage {
 ### AiMessageText — AI 消息文本（流式 Markdown 渲染）
 
 在聊天气泡中显示 AI 生成的 Markdown 内容，支持**逐字打字动画**和**流式增量渲染**。
-
-<div align="center">
-  <img src="assets/ai_chat.png" alt="AI 聊天示例" width="300">
-</div>
 
 **Attr 属性：**
 
@@ -1999,79 +1939,7 @@ class ChatDemoPage : BasePager() {
 
 ---
 
-## 发布到 Maven
 
-项目内置发布脚本 `publish-maven.sh`：
-
-```bash
-# 发布到远程 Maven 仓库
-./publish-maven.sh -v 1.0.0
-
-# 发布 SNAPSHOT 版本
-./publish-maven.sh -v 1.0.0 -s true
-
-# 发布到本地 Maven 仓库（调试用）
-./publish-maven.sh -v 1.0.0 -l true
-
-# 指定 Kotlin 版本
-./publish-maven.sh -v 1.0.0 -k 2.0.21
-
-# 查看帮助
-./publish-maven.sh -h
-```
-
-发布后 Maven 坐标：`com.tencent.kuiklybase:KuiklyChat:{version}-{kotlinVersion}`
-
----
-
-## 注意事项
-
-### 1. 消息列表必须是 ObservableList
-
-```kotlin
-// ✅ 正确
-var messageList by observableList<ChatMessage>()
-
-// ❌ 错误：普通列表不会触发 UI 更新
-val messageList = mutableListOf<ChatMessage>()
-```
-
-### 2. 每个页面只放一个 ChatSession
-
-多个 ChatSession 共享同一个 messageList 会导致 `vfor` 响应式更新冲突。
-
-### 3. Slot 中使用 container 参数添加子组件
-
-```kotlin
-// ✅ 正确
-messageBubble = { container, context, config ->
-    container.ChatBubble { ... }
-}
-
-// ❌ 错误：使用外层引用会导致 vfor 子节点检测失败
-messageBubble = { container, context, config ->
-    this@List.ChatBubble { ... }
-}
-```
-
-### 4. 颜色值必须包含 Alpha 通道
-
-```kotlin
-primaryColor = 0xFF4F8FFF   // ✅ 包含 FF（不透明）
-primaryColor = 0x4F8FFF     // ❌ 缺少 Alpha 通道
-```
-
-### 5. 时间分组需要设置 timestamp
-
-只有 `timestamp > 0` 的消息才参与时间分组。默认值 `0L` 不会显示时间标签。
-
-### 6. composerSafeAreaBottom 需从外部传入
-
-由于 ChatSession 是 `ViewContainer` 扩展函数，无法直接访问 `pagerData`。需要在 Pager/ComposeView 中传入安全区域高度：
-
-```kotlin
-composerSafeAreaBottom = ctx.pagerData.safeAreaInsets.bottom
-```
 
 
 
