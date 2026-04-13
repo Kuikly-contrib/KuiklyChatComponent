@@ -243,6 +243,18 @@ class ChatThemeOptions {
     /** 发送按钮文字颜色 */
     var composerSendButtonTextColor: Long = 0xFFFFFFFF
 
+    // ---- ComposerHeader 主题（回复/编辑提示条） ----
+    /** ComposerHeader 背景色 */
+    var composerHeaderBackgroundColor: Long = 0xFFF0F2F5
+    /** ComposerHeader 文字颜色 */
+    var composerHeaderTextColor: Long = 0xFF666666
+    /** ComposerHeader 关闭按钮颜色 */
+    var composerHeaderCloseColor: Long = 0xFF999999
+    /** ComposerHeader 引用竖线颜色 */
+    var composerHeaderBarColor: Long = 0xFF4F8FFF
+    /** ComposerHeader 引用文字颜色 */
+    var composerHeaderQuoteTextColor: Long = 0xFF999999
+
     /**
      * 获取当前主题的颜色方案。
      * 如果用户在 theme { } 中手动设置了颜色，则使用用户设置的值。
@@ -264,7 +276,12 @@ class ChatThemeOptions {
             composerInputBorderColor = composerInputBorderColor,
             composerInputTextColor = composerInputTextColor,
             composerPlaceholderColor = composerPlaceholderColor,
-            composerSendButtonTextColor = composerSendButtonTextColor
+            composerSendButtonTextColor = composerSendButtonTextColor,
+            composerHeaderBackgroundColor = composerHeaderBackgroundColor,
+            composerHeaderTextColor = composerHeaderTextColor,
+            composerHeaderCloseColor = composerHeaderCloseColor,
+            composerHeaderBarColor = composerHeaderBarColor,
+            composerHeaderQuoteTextColor = composerHeaderQuoteTextColor
         )
     }
 

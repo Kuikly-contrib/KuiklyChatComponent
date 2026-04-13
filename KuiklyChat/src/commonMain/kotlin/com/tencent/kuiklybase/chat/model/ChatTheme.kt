@@ -103,7 +103,19 @@ data class ChatThemeColors(
     /** 输入框占位文字颜色 */
     val composerPlaceholderColor: Long = 0xFFBBBBBB,
     /** 发送按钮文字颜色 */
-    val composerSendButtonTextColor: Long = 0xFFFFFFFF
+    val composerSendButtonTextColor: Long = 0xFFFFFFFF,
+
+    // ---- ComposerHeader 颜色（回复/编辑提示条） ----
+    /** ComposerHeader 背景色 */
+    val composerHeaderBackgroundColor: Long = 0xFFF0F2F5,
+    /** ComposerHeader 文字颜色（如"回复 xxx"） */
+    val composerHeaderTextColor: Long = 0xFF666666,
+    /** ComposerHeader 关闭按钮颜色 */
+    val composerHeaderCloseColor: Long = 0xFF999999,
+    /** ComposerHeader 引用竖线颜色（默认跟主色） */
+    val composerHeaderBarColor: Long = 0xFF4F8FFF,
+    /** ComposerHeader 引用内容文字颜色 */
+    val composerHeaderQuoteTextColor: Long = 0xFF999999
 )
 
 /**
@@ -156,7 +168,12 @@ val DarkThemeColors = ChatThemeColors(
     composerInputBorderColor = 0xFF3D3D5C,
     composerInputTextColor = 0xFFE0E0E0,
     composerPlaceholderColor = 0xFF606060,
-    composerSendButtonTextColor = 0xFFFFFFFF
+    composerSendButtonTextColor = 0xFFFFFFFF,
+    composerHeaderBackgroundColor = 0xFF1A1A2E,
+    composerHeaderTextColor = 0xFFB0B0B0,
+    composerHeaderCloseColor = 0xFF808080,
+    composerHeaderBarColor = 0xFF5B9FFF,
+    composerHeaderQuoteTextColor = 0xFF808080
 )
 
 /**

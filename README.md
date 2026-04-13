@@ -819,6 +819,188 @@ val channels = repository.getChannels(limit = 20)
 
 ---
 
+### ChatChannel（频道/会话模型）
+
+代表一个聊天频道或会话，用于频道列表展示。
+
+**ChatChannel 字段**：
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `id` | `String` | — | 频道唯一 ID |
+| `type` | `ChannelType` | `DIRECT` | 频道类型 |
+| `name` | `String` | `""` | 频道名称（群聊名/频道名；单聊时为对方昵称） |
+| `avatarUrl` | `String` | `""` | 频道头像 URL |
+| `lastMessage` | `ChatMessage?` | `null` | 最后一条消息（用于列表预览） |
+| `lastMessageAt` | `Long` | `0L` | 最后消息时间戳（毫秒，用于排序） |
+| `unreadCount` | `Int` | `0` | 未读消息数 |
+| `isMuted` | `Boolean` | `false` | 是否已静音 |
+| `isPinned` | `Boolean` | `false` | 是否已置顶 |
+| `memberCount` | `Int` | `0` | 成员总数 |
+| `members` | `List<ChatChannelMember>` | `emptyList()` | 成员列表（可选，按需加载） |
+| `createdAt` | `Long` | `0L` | 频道创建时间戳（毫秒） |
+| `updatedAt` | `Long` | `0L` | 频道更新时间戳（毫秒） |
+| `extra` | `Map<String, String>` | `emptyMap()` | 扩展数据（业务方自定义字段） |
+
+**ChannelType 枚举**：
+
+| 值 | 说明 |
+|----|------|
+| `DIRECT` | 单聊（1v1） |
+| `GROUP` | 群聊 |
+| `CHANNEL` | 公开频道（类似 Discord/Slack） |
+| `CUSTOM` | 自定义类型 |
+
+**ChatChannelMember 字段**：
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `id` | `String` | — | 成员唯一 ID |
+| `name` | `String` | — | 成员显示名称 |
+| `avatarUrl` | `String` | `""` | 成员头像 URL |
+| `role` | `MemberRole` | `MEMBER` | 成员角色（`OWNER` / `ADMIN` / `MEMBER` / `GUEST`） |
+| `onlineStatus` | `OnlineStatus` | `OFFLINE` | 在线状态（`ONLINE` / `OFFLINE` / `BUSY` / `AWAY`） |
+| `lastActiveAt` | `Long` | `0L` | 最后活跃时间戳（毫秒） |
+| `extra` | `Map<String, String>` | `emptyMap()` | 扩展数据 |
+
+**ChatChannelHelper 工具类**：
+
+| 方法 | 说明 |
+|------|------|
+| `generateId()` | 生成频道唯一 ID |
+| `createDirectChannel(...)` | 创建单聊频道 |
+| `createGroupChannel(...)` | 创建群聊频道 |
+| `createPublicChannel(...)` | 创建公开频道 |
+| `getLastMessagePreview(channel, maxLength)` | 获取频道最后消息的预览文本 |
+| `formatLastMessageTime(timestamp)` | 格式化频道最后消息时间 |
+
+---
+
+### ChatChannelList（频道列表组件）
+
+频道/会话列表组件，展示用户的所有聊天频道，支持搜索、未读计数、在线状态等。
+
+**函数签名**：
+
+```kotlin
+fun ViewContainer<*, *>.ChatChannelList(
+    channelList: () -> ObservableList<ChatChannel>,
+    config: ChatChannelListConfig.() -> Unit
+)
+```
+
+**基本用法**：
+
+```kotlin
+var channelList by observableList<ChatChannel>()
+
+ChatChannelList({ ctx.channelList }) {
+    title = "消息"
+    showHeader = true
+    showSearchBar = true
+
+    // 主题配置
+    theme {
+        primaryColor = 0xFF4F8FFF
+        channelNameColor = 0xFF333333
+        unreadBadgeColor = 0xFFFF4444
+    }
+
+    // 事件回调
+    onChannelClick = { channel -> /* 进入聊天 */ }
+    onChannelLongPress = { channel -> /* 长按操作 */ }
+    onSearchTextChange = { text -> /* 搜索 */ }
+    onLoadMore = { /* 加载更多频道 */ }
+}
+```
+
+**ChatChannelListConfig 配置项**：
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `title` | `String` | `"消息"` | 导航栏标题 |
+| `showHeader` | `Boolean` | `true` | 是否显示导航栏 |
+| `showSearchBar` | `Boolean` | `true` | 是否显示搜索栏 |
+| `searchPlaceholder` | `String` | `"搜索"` | 搜索栏占位文字 |
+| `showOnlineIndicator` | `Boolean` | `true` | 是否显示在线状态指示器 |
+| `showUnreadCount` | `Boolean` | `true` | 是否显示未读计数 |
+| `showLastMessage` | `Boolean` | `true` | 是否显示最后消息预览 |
+| `showLastMessageTime` | `Boolean` | `true` | 是否显示最后消息时间 |
+| `hasMore` | `Boolean` | `true` | 是否还有更多频道可加载 |
+| `isLoadingMore` | `Boolean` | `false` | 是否正在加载更多 |
+| `componentFactory` | `ChatComponentFactory` | `DefaultChatComponentFactory()` | 组件工厂 |
+| `channelNameFormatter` | `ChannelNameFormatter` | `DefaultChannelNameFormatter()` | 频道名称格式化器 |
+| `messagePreviewFormatter` | `MessagePreviewFormatter` | `DefaultMessagePreviewFormatter()` | 消息预览文本格式化器 |
+| `timestampFormatter` | `TimestampFormatter` | `DefaultTimestampFormatter()` | 时间戳格式化器 |
+
+**事件回调**：
+
+| 回调 | 类型 | 说明 |
+|------|------|------|
+| `onChannelClick` | `(ChatChannel) -> Unit` | 频道点击 |
+| `onChannelLongPress` | `(ChatChannel) -> Unit` | 频道长按 |
+| `onChannelDelete` | `(ChatChannel) -> Unit` | 频道删除（左滑删除） |
+| `onChannelPin` | `(ChatChannel) -> Unit` | 频道置顶/取消置顶 |
+| `onChannelMute` | `(ChatChannel) -> Unit` | 频道静音/取消静音 |
+| `onSearchTextChange` | `(String) -> Unit` | 搜索文本变化 |
+| `onBackClick` | `() -> Unit` | 返回按钮点击 |
+| `onTrailingClick` | `() -> Unit` | 右上角操作按钮点击 |
+| `onLoadMore` | `() -> Unit` | 滚动到底部触发加载更多 |
+
+**Slot 插槽**：
+
+通过 `slots {}` DSL 配置自定义渲染：
+
+```kotlin
+ChatChannelList({ ctx.channelList }) {
+    slots {
+        // 自定义频道项渲染
+        channelItem = { container, channel, config ->
+            container.View { /* 自定义频道项 UI */ }
+        }
+        // 自定义头部
+        header = { container, config ->
+            container.View { /* 自定义导航栏 + 搜索栏 */ }
+        }
+        // 空状态
+        emptyContent = { container ->
+            container.View { /* 自定义空状态 */ }
+        }
+        // 加载中
+        loadingContent = { container ->
+            container.View { /* 自定义加载中 */ }
+        }
+        // 自定义分隔线
+        divider = { container, index ->
+            container.View { /* 自定义分隔线 */ }
+        }
+    }
+}
+```
+
+**ChannelListTheme 主题配置**：
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `backgroundColor` | `Long` | `0xFFFFFFFF` | 页面背景色 |
+| `primaryColor` | `Long` | `0xFF4F8FFF` | 主色（导航栏、高亮） |
+| `primaryGradientEndColor` | `Long` | `0xFF6C5CE7` | 渐变结束色 |
+| `itemBackgroundColor` | `Long` | `0xFFFFFFFF` | 频道项背景色 |
+| `channelNameColor` | `Long` | `0xFF333333` | 频道名称文字颜色 |
+| `lastMessageColor` | `Long` | `0xFF999999` | 最后消息预览文字颜色 |
+| `timeColor` | `Long` | `0xFFBBBBBB` | 时间文字颜色 |
+| `unreadBadgeColor` | `Long` | `0xFFFF4444` | 未读计数背景色 |
+| `dividerColor` | `Long` | `0xFFF0F0F0` | 分隔线颜色 |
+| `avatarPlaceholderColor` | `Long` | `0xFFE8E8E8` | 头像占位背景色 |
+| `onlineIndicatorColor` | `Long` | `0xFF4CAF50` | 在线状态指示器颜色 |
+| `itemHeight` | `Float` | `72f` | 频道项高度 |
+| `avatarSize` | `Float` | `48f` | 头像尺寸 |
+| `avatarRadius` | `Float` | `8f` | 头像圆角 |
+| `channelNameFontSize` | `Float` | `16f` | 频道名称字号 |
+| `lastMessageFontSize` | `Float` | `14f` | 最后消息预览字号 |
+
+---
+
 ### ChatPreviewData（预览 / Mock 数据）
 
 提供用于 Preview、测试和 Demo 的 Mock 数据集合，附带一个开箱即用的 `MockChatRepository` 实现。
@@ -1093,6 +1275,264 @@ container.ChatReactionBar {
 container.ChatSystemMessage {
     attr {
         message = "以下是新的聊天"
+    }
+}
+```
+
+### AiMessageText — AI 消息文本（流式 Markdown 渲染）
+
+在聊天气泡中显示 AI 生成的 Markdown 内容，支持**逐字打字动画**和**流式增量渲染**。
+
+**Attr 属性：**
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `messageId` | `String` | `""` | 消息唯一 ID（用于匹配 `AiTypingState.Generating` 的 messageId） |
+| `content` | `String` | `""` | 消息完整内容（Markdown 格式文本） |
+| `typingState` | `AiTypingState` | `Nothing` | AI 打字状态（`Nothing` = 直接显示，`Generating(id)` = 逐字动画） |
+| `textColor` | `Long` | `0xFF333333` | 文字颜色 |
+| `fontSize` | `Float` | `15f` | 文字字号 |
+| `linkColor` | `Long` | `0xFF1A73E8` | 链接颜色 |
+| `codeBackgroundColor` | `Long` | `0xFFF5F5F5` | 代码块背景色 |
+| `inlineCodeBackgroundColor` | `Long` | `0xFFE8E8E8` | 行内代码背景色 |
+| `typingInterval` | `Int` | `10` | 逐字动画间隔（毫秒），值越小打字越快 |
+| `typingSpeed` | `Int` | `1` | 每次动画 tick 前进的字符数 |
+| `paddingVertical` | `Float` | `8f` | 容器上下内边距 |
+| `paddingHorizontal` | `Float` | `12f` | 容器左右内边距 |
+| `markdownConfig` | `MarkdownConfig?` | `null` | 自定义 Markdown 配置（设置后忽略上面的颜色/字号属性） |
+
+**Event 事件：**
+
+| 事件 | 类型 | 说明 |
+|------|------|------|
+| `onAnimationStateChange` | `(Boolean) -> Unit` | 动画状态变化回调（`true` = 开始，`false` = 结束） |
+| `onLinkClick` | `(String) -> Unit` | 链接点击回调 |
+| `onLongPress` | `() -> Unit` | 长按回调 |
+
+**AiTypingState 枚举：**
+
+| 状态 | 说明 |
+|------|------|
+| `AiTypingState.Nothing` | 无动画 — 消息已完成生成，直接显示全部内容 |
+| `AiTypingState.Generating(messageId)` | 正在生成 — AI 正在流式输出，需要逐字显示动画 |
+
+```kotlin
+AiMessageText {
+    attr {
+        messageId = message.id
+        content = message.content
+        typingState = AiTypingState.Generating(message.id)
+        textColor = 0xFF333333
+        fontSize = 15f
+    }
+    event {
+        onAnimationStateChange = { isAnimating ->
+            // 动画状态变化时可控制滚动等行为
+        }
+        onLinkClick = { url ->
+            // 处理链接点击
+        }
+    }
+}
+```
+
+### ChatAiTypingIndicator — AI 打字效果指示器
+
+在消息列表中显示 AI 正在生成回复的状态指示器，包含文字标签和三个波浪式跳动圆点，并带有微光闪烁效果。
+
+**Attr 属性：**
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `text` | `String` | `"AI 正在思考..."` | 显示的文字标签 |
+| `textColor` | `Long` | `0xFF666666` | 文字颜色 |
+| `textFontSize` | `Float` | `14f` | 文字字号 |
+| `dotColor` | `Long` | `0xFF999999` | 圆点颜色 |
+| `dotSize` | `Float` | `8f` | 单个圆点直径 |
+| `dotGap` | `Float` | `4f` | 圆点之间的间距 |
+| `dotSpacing` | `Float` | `6f` | 文字与圆点之间的间距 |
+| `paddingVertical` | `Float` | `10f` | 容器上下内边距 |
+| `paddingHorizontal` | `Float` | `16f` | 容器左右内边距 |
+
+```kotlin
+ChatAiTypingIndicator {
+    attr {
+        text = "AI 正在思考..."
+        dotColor = 0xFF4F8FFF
+        textColor = 0xFF666666
+        textFontSize = 14f
+        dotSize = 8f
+    }
+}
+```
+
+### ChatChannelHeader — 频道详情头部
+
+展示频道的详细信息，通常放在频道内部页面的顶部，包含频道头像、名称、成员数、在线状态和操作按钮。
+
+**布局结构：**
+
+```
+┌──────────────────────────────────────┐
+│          [大头像]                     │
+│        频道名称                       │
+│     成员数 · 在线数                   │
+│                                      │
+│  [语音]  [视频]  [搜索]  [更多]       │
+├──────────────────────────────────────┤
+│  分隔线                              │
+└──────────────────────────────────────┘
+```
+
+**Attr 属性：**
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `channel` | `ChatChannel` | — | 频道数据 |
+| `backgroundColor` | `Long` | `0xFFFFFFFF` | 背景色 |
+| `primaryColor` | `Long` | `0xFF4F8FFF` | 主色 |
+| `channelNameColor` | `Long` | `0xFF333333` | 频道名称颜色 |
+| `descriptionColor` | `Long` | `0xFF999999` | 描述文字颜色 |
+| `onlineIndicatorColor` | `Long` | `0xFF4CAF50` | 在线状态颜色 |
+| `avatarPlaceholderColor` | `Long` | `0xFFE8E8E8` | 头像占位背景色 |
+| `avatarSize` | `Float` | `64f` | 头像尺寸 |
+| `avatarRadius` | `Float` | `12f` | 头像圆角 |
+| `showMemberCount` | `Boolean` | `true` | 是否显示成员数 |
+| `showOnlineStatus` | `Boolean` | `true` | 是否显示在线状态 |
+| `showActionButtons` | `Boolean` | `true` | 是否显示操作按钮 |
+
+**Event 事件：**
+
+| 事件 | 类型 | 说明 |
+|------|------|------|
+| `onAvatarClick` | `() -> Unit` | 头像点击 |
+| `onVoiceCallClick` | `() -> Unit` | 语音通话按钮点击 |
+| `onVideoCallClick` | `() -> Unit` | 视频通话按钮点击 |
+| `onSearchClick` | `() -> Unit` | 搜索按钮点击 |
+| `onMoreClick` | `() -> Unit` | 更多按钮点击 |
+
+```kotlin
+ChatChannelHeader {
+    attr {
+        channel = currentChannel
+        showActionButtons = true
+        showMemberCount = true
+        avatarSize = 64f
+    }
+    event {
+        onVoiceCallClick = { /* 发起语音通话 */ }
+        onVideoCallClick = { /* 发起视频通话 */ }
+        onSearchClick = { /* 打开搜索 */ }
+        onMoreClick = { /* 打开更多设置 */ }
+    }
+}
+```
+
+### ChatChannelMemberItem — 频道成员项
+
+单个频道成员的渲染组件，展示头像、名称、在线状态和角色标签。
+
+**Attr 属性：**
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `member` | `ChatChannelMember` | — | 成员数据 |
+| `backgroundColor` | `Long` | `0xFFFFFFFF` | 背景色 |
+| `nameColor` | `Long` | `0xFF333333` | 名称颜色 |
+| `roleColor` | `Long` | `0xFF999999` | 角色标签颜色 |
+| `onlineIndicatorColor` | `Long` | `0xFF4CAF50` | 在线指示器颜色 |
+| `offlineIndicatorColor` | `Long` | `0xFFBBBBBB` | 离线指示器颜色 |
+| `avatarSize` | `Float` | `40f` | 头像尺寸 |
+| `avatarRadius` | `Float` | `20f` | 头像圆角 |
+| `itemHeight` | `Float` | `56f` | 项高度 |
+| `showOnlineStatus` | `Boolean` | `true` | 是否显示在线状态 |
+| `showRole` | `Boolean` | `true` | 是否显示角色标签 |
+| `showDivider` | `Boolean` | `true` | 是否显示分隔线 |
+
+**Event 事件：**
+
+| 事件 | 类型 | 说明 |
+|------|------|------|
+| `onClick` | `() -> Unit` | 成员项点击 |
+| `onLongPress` | `() -> Unit` | 成员项长按 |
+
+### ChatChannelMemberList — 频道成员列表
+
+展示频道的所有成员列表，内部使用 `ChatChannelMemberItem` 渲染每个成员。
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `members` | `List<ChatChannelMember>` | — | 成员列表（必填） |
+| `onMemberClick` | `(ChatChannelMember) -> Unit` | `null` | 成员点击回调 |
+| `onMemberLongPress` | `(ChatChannelMember) -> Unit` | `null` | 成员长按回调 |
+| `showOnlineStatus` | `Boolean` | `true` | 是否显示在线状态 |
+| `showRole` | `Boolean` | `true` | 是否显示角色标签 |
+| `backgroundColor` | `Long` | `0xFFFFFFFF` | 背景色 |
+| `sectionTitle` | `String` | `""` | 分区标题（如"在线成员"） |
+
+```kotlin
+// 单独使用成员项
+ChatChannelMemberItem {
+    attr {
+        member = someMember
+        showOnlineStatus = true
+        showRole = true
+    }
+    event {
+        onClick = { /* 查看成员详情 */ }
+    }
+}
+
+// 使用成员列表（推荐）
+ChatChannelMemberList(
+    members = channel.members,
+    onMemberClick = { member -> /* 查看成员详情 */ },
+    showOnlineStatus = true,
+    showRole = true,
+    sectionTitle = "在线成员"
+)
+```
+
+### ChatComposerHeader — 输入框顶部提示条
+
+在输入框上方显示回复/编辑状态的提示条，包含左侧竖线、标题文字、引用摘要和关闭按钮。此组件是 ComposerHeader Slot 的默认实现，也可独立使用。
+
+**ComposerHeaderMode 枚举：**
+
+| 模式 | 说明 |
+|------|------|
+| `ComposerHeaderMode.REPLY` | 回复消息模式 |
+| `ComposerHeaderMode.EDIT` | 编辑消息模式 |
+
+**Attr 属性：**
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `mode` | `ComposerHeaderMode` | `REPLY` | 当前模式（回复/编辑） |
+| `replyingToMessage` | `ChatMessage?` | `null` | 正在回复的消息 |
+| `editingMessage` | `ChatMessage?` | `null` | 正在编辑的消息 |
+| `backgroundColor` | `Long` | `0xFFF0F2F5` | 背景色 |
+| `textColor` | `Long` | `0xFF666666` | 标题文字颜色 |
+| `closeColor` | `Long` | `0xFF999999` | 关闭按钮颜色 |
+| `barColor` | `Long` | `0xFF4F8FFF` | 左侧竖线颜色 |
+| `quoteTextColor` | `Long` | `0xFF999999` | 引用文字颜色 |
+
+**Event 事件：**
+
+| 事件 | 类型 | 说明 |
+|------|------|------|
+| `onClose` | `() -> Unit` | 关闭/取消回调 |
+
+```kotlin
+ChatComposerHeader {
+    attr {
+        mode = ComposerHeaderMode.REPLY
+        replyingToMessage = someMessage
+        backgroundColor = 0xFFF0F2F5
+        barColor = 0xFF4F8FFF
+    }
+    event {
+        onClose = { /* 取消回复 */ }
     }
 }
 ```

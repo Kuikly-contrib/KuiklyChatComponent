@@ -479,77 +479,25 @@ fun ViewContainer<*, *>.ChatSession(
 
         // ========== MessageComposer 输入框（参考 Stream Chat Compose 的 MessageComposer） ==========
         if (cfg.showMessageComposer) {
-            // P0: 默认 composerHeader — 引用回复提示条
+            // P0: 默认 composerHeader — 使用 ChatComposerHeader 组件
             if (slots.composerHeader == null && cfg._replyingToMessage != null) {
                 slots.composerHeader = { container, state ->
                     val replyMsg = cfg._replyingToMessage
                     if (replyMsg != null) {
                         container.apply {
-                            View {
+                            ChatComposerHeader {
                                 attr {
-                                    flexDirectionRow()
-                                    alignItems(FlexAlign.CENTER)
-                                    padding(8f, 12f, 8f, 12f)
-                                    backgroundColor(Color(themeColors.quoteReplyBgColor))
-                                    borderBottom(Border(0.5f, BorderStyle.SOLID, Color(themeColors.dividerColor)))
+                                    mode = ComposerHeaderMode.REPLY
+                                    replyingToMessage = replyMsg
+                                    backgroundColor = themeColors.composerHeaderBackgroundColor
+                                    textColor = themeColors.composerHeaderTextColor
+                                    closeColor = themeColors.composerHeaderCloseColor
+                                    barColor = themeColors.composerHeaderBarColor
+                                    quoteTextColor = themeColors.composerHeaderQuoteTextColor
                                 }
-                                // 引用竖线
-                                View {
-                                    attr {
-                                        width(3f)
-                                        height(32f)
-                                        borderRadius(1.5f)
-                                        backgroundColor(Color(themeColors.quoteReplyBarColor))
-                                        marginRight(8f)
-                                    }
-                                }
-                                // 回复信息
-                                View {
-                                    attr {
-                                        flex(1f)
-                                        flexDirection(FlexDirection.COLUMN)
-                                    }
-                                    Text {
-                                        attr {
-                                            text("回复 ${replyMsg.senderName}")
-                                            fontSize(12f)
-                                            fontWeightMedium()
-                                            color(Color(themeColors.quoteReplyBarColor))
-                                        }
-                                    }
-                                    Text {
-                                        attr {
-                                            val preview = if (replyMsg.content.length > 40) {
-                                                replyMsg.content.take(40) + "..."
-                                            } else {
-                                                replyMsg.content
-                                            }
-                                            text(preview)
-                                            fontSize(12f)
-                                            color(Color(themeColors.quoteReplyTextColor))
-                                            marginTop(2f)
-                                            lines(1)
-                                        }
-                                    }
-                                }
-                                // 关闭按钮
-                                View {
-                                    attr {
-                                        size(28f, 28f)
-                                        allCenter()
-                                        marginLeft(8f)
-                                    }
-                                    Text {
-                                        attr {
-                                            text("✕")
-                                            fontSize(16f)
-                                            color(Color(themeColors.readReceiptColor))
-                                        }
-                                    }
-                                    event {
-                                        click {
-                                            cfg.cancelReply()
-                                        }
+                                event {
+                                    onClose = {
+                                        cfg.cancelReply()
                                     }
                                 }
                             }
@@ -1271,6 +1219,7 @@ internal fun renderDefaultFileBubble(
     val fileSizeText = formatFileSize(fileSize)
 
     container.apply {
+        var fileCardRef: ViewRef<DivView>? = null
         View {
             attr {
                 flexDirectionRow()
@@ -1315,6 +1264,7 @@ internal fun renderDefaultFileBubble(
                         }
                         // 文件卡片
                         View {
+                            ref { fileCardRef = it }
                             attr {
                                 marginLeft(if (listOptions.showAvatar) theme.avatarBubbleGap else 0f)
                                 backgroundColor(Color(theme.otherBubbleColor))
@@ -1322,16 +1272,14 @@ internal fun renderDefaultFileBubble(
                                 padding(12f, 14f, 12f, 14f)
                                 flexDirectionRow()
                                 alignItems(FlexAlign.CENTER)
-                                width(theme.bubbleMaxWidthRatio * 375f) // 固定宽度卡片
+                                width(theme.bubbleMaxWidthRatio * 375f)
                                 boxShadow(BoxShadow(0f, 1f, 6f, Color(0x1A000000)))
                             }
-                            // 文件图标（使用 ComponentFactory）
                             cfg.componentFactory.renderFileIcon(
                                 this@View,
                                 attachment?.mimeType ?: message.extra["mimeType"] ?: "",
                                 themeColors.primaryColor
                             )
-                            // 文件名 + 大小
                             View {
                                 attr {
                                     flex(1f)
@@ -1358,20 +1306,34 @@ internal fun renderDefaultFileBubble(
                             }
                             event {
                                 click { cfg.onMessageClick?.invoke(message) }
-                                longPress { cfg.onMessageLongPress?.invoke(message) }
+                                longPress {
+                                    if (cfg.onMessageLongPressWithPosition != null) {
+                                        fileCardRef?.view?.let { view ->
+                                            val frame = view.frame
+                                            val frameInRoot = view.convertFrame(frame, toView = null)
+                                            val correctedY = cfg.correctBubbleY(frameInRoot.y)
+                                            cfg.onMessageLongPressWithPosition?.invoke(
+                                                message, frameInRoot.x, correctedY,
+                                                frameInRoot.width, frameInRoot.height
+                                            )
+                                        } ?: cfg.onMessageLongPress?.invoke(message)
+                                    } else {
+                                        cfg.onMessageLongPress?.invoke(message)
+                                    }
+                                }
                             }
                         }
                     }
                 }
             } else {
                 // 自己发送的文件
-                // 重发按钮（使用 ComponentFactory）
                 if (message.status == MessageStatus.FAILED) {
                     cfg.componentFactory.renderResendButton(
                         this@View, themeColors.errorColor
                     ) { cfg.onResend?.invoke(message) }
                 }
                 View {
+                    ref { fileCardRef = it }
                     attr {
                         backgroundColor(Color(theme.otherBubbleColor))
                         borderRadius(12f)
@@ -1381,7 +1343,6 @@ internal fun renderDefaultFileBubble(
                         width(theme.bubbleMaxWidthRatio * 375f)
                         boxShadow(BoxShadow(0f, 1f, 6f, Color(0x1A000000)))
                     }
-                    // 文件图标（使用 ComponentFactory）
                     cfg.componentFactory.renderFileIcon(
                         this@View,
                         attachment?.mimeType ?: message.extra["mimeType"] ?: "",
@@ -1413,7 +1374,21 @@ internal fun renderDefaultFileBubble(
                     }
                     event {
                         click { cfg.onMessageClick?.invoke(message) }
-                        longPress { cfg.onMessageLongPress?.invoke(message) }
+                        longPress {
+                            if (cfg.onMessageLongPressWithPosition != null) {
+                                fileCardRef?.view?.let { view ->
+                                    val frame = view.frame
+                                    val frameInRoot = view.convertFrame(frame, toView = null)
+                                    val correctedY = cfg.correctBubbleY(frameInRoot.y)
+                                    cfg.onMessageLongPressWithPosition?.invoke(
+                                        message, frameInRoot.x, correctedY,
+                                        frameInRoot.width, frameInRoot.height
+                                    )
+                                } ?: cfg.onMessageLongPress?.invoke(message)
+                            } else {
+                                cfg.onMessageLongPress?.invoke(message)
+                            }
+                        }
                     }
                 }
                 if (showAvatarForThis) {
