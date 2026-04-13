@@ -137,49 +137,160 @@ class ChatMessageOptionsView : ComposeView<ChatMessageOptionsAttr, ChatMessageOp
                             animate(Animation.easeInOut(0.2f), ctx.animationFlag)
                         }
 
-                        if (msgType == MessageType.IMAGE) {
-                            // 图片消息：直接显示图片
-                            View {
-                                attr {
-                                    size(msgW, msgH)
-                                    borderRadius(12f)
-                                    backgroundColor(Color(0xFFE8E8E8))
-                                }
-                                Image {
+                        when (msgType) {
+                            MessageType.IMAGE -> {
+                                View {
                                     attr {
                                         size(msgW, msgH)
                                         borderRadius(12f)
-                                        src(msgContent)
-                                        resizeCover()
+                                        backgroundColor(Color(0xFFE8E8E8))
+                                    }
+                                    Image {
+                                        attr {
+                                            size(msgW, msgH)
+                                            borderRadius(12f)
+                                            src(msgContent)
+                                            resizeCover()
+                                        }
                                     }
                                 }
                             }
-                        } else {
-                            // 文本消息：复制气泡样式
-                            View {
-                                attr {
-                                    size(msgW, msgH)
-                                    if (isSelf) {
-                                        backgroundLinearGradient(
-                                            Direction.TO_RIGHT,
-                                            ColorStop(Color(ctx.attr.bubblePrimaryColor), 0f),
-                                            ColorStop(Color(ctx.attr.bubblePrimaryGradientEndColor), 1f)
-                                        )
-                                        borderRadius(BorderRectRadius(12f, 2f, 12f, 12f))
-                                    } else {
-                                        backgroundColor(Color(ctx.attr.bubbleOtherBubbleColor))
-                                        borderRadius(BorderRectRadius(2f, 12f, 12f, 12f))
-                                    }
-                                    boxShadow(if (isSelf) BoxShadow(0f, 1f, 6f, Color(0x334F8FFF)) else BoxShadow(0f, 1f, 6f, Color(0x1A000000)))
-                                    padding(ctx.attr.bubblePaddingV, ctx.attr.bubblePaddingH, ctx.attr.bubblePaddingV, ctx.attr.bubblePaddingH)
-                                    overflow(false)
-                                }
-                                Text {
+                            MessageType.VIDEO -> {
+                                val attachment = ctx.attr.message?.attachments?.firstOrNull()
+                                val thumbUrl = attachment?.thumbnailUrl?.ifEmpty { msgContent } ?: msgContent
+                                View {
                                     attr {
-                                        text(msgContent)
-                                        fontSize(ctx.attr.bubbleFontSize)
-                                        color(if (isSelf) Color(ctx.attr.bubbleSelfTextColor) else Color(ctx.attr.bubbleOtherTextColor))
-                                        lineHeight(ctx.attr.bubbleLineHeight)
+                                        size(msgW, msgH)
+                                        borderRadius(12f)
+                                        backgroundColor(Color(0xFFE8E8E8))
+                                    }
+                                    Image {
+                                        attr {
+                                            size(msgW, msgH)
+                                            borderRadius(12f)
+                                            src(thumbUrl)
+                                            resizeCover()
+                                        }
+                                    }
+                                    View {
+                                        attr {
+                                            positionAbsolute()
+                                            top(0f)
+                                            left(0f)
+                                            size(msgW, msgH)
+                                            allCenter()
+                                        }
+                                        View {
+                                            attr {
+                                                size(48f, 48f)
+                                                borderRadius(24f)
+                                                backgroundColor(Color(0x80000000))
+                                                allCenter()
+                                            }
+                                            Text {
+                                                attr {
+                                                    text("▶")
+                                                    fontSize(20f)
+                                                    color(Color.WHITE)
+                                                    marginLeft(3f)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            MessageType.FILE -> {
+                                val attachment = ctx.attr.message?.attachments?.firstOrNull()
+                                val fileName = attachment?.title?.ifEmpty { msgContent } ?: msgContent
+                                val fileSize = attachment?.fileSize ?: 0L
+                                val fileSizeText = if (fileSize > 0) {
+                                    when {
+                                        fileSize < 1024 -> "${fileSize} B"
+                                        fileSize < 1024 * 1024 -> "${(fileSize / 1024.0 * 10).toLong() / 10.0} KB"
+                                        else -> "${(fileSize / (1024.0 * 1024.0) * 10).toLong() / 10.0} MB"
+                                    }
+                                } else ""
+                                val mimeType = attachment?.mimeType
+                                    ?: ctx.attr.message?.extra?.get("mimeType") ?: ""
+                                val fileIcon = getFileIcon(mimeType)
+                                View {
+                                    attr {
+                                        size(msgW, msgH)
+                                        backgroundColor(Color(ctx.attr.bubbleOtherBubbleColor))
+                                        borderRadius(12f)
+                                        padding(12f, 14f, 12f, 14f)
+                                        flexDirectionRow()
+                                        alignItems(FlexAlign.CENTER)
+                                        boxShadow(BoxShadow(0f, 1f, 6f, Color(0x1A000000)))
+                                        overflow(false)
+                                    }
+                                    View {
+                                        attr {
+                                            size(40f, 40f)
+                                            borderRadius(8f)
+                                            backgroundColor(Color(ctx.attr.bubblePrimaryColor))
+                                            allCenter()
+                                            marginRight(12f)
+                                        }
+                                        Text {
+                                            attr {
+                                                text(fileIcon)
+                                                fontSize(20f)
+                                            }
+                                        }
+                                    }
+                                    View {
+                                        attr {
+                                            flex(1f)
+                                            flexDirection(FlexDirection.COLUMN)
+                                        }
+                                        Text {
+                                            attr {
+                                                text(fileName)
+                                                fontSize(14f)
+                                                color(Color(ctx.attr.bubbleOtherTextColor))
+                                                lines(2)
+                                            }
+                                        }
+                                        if (fileSizeText.isNotEmpty()) {
+                                            Text {
+                                                attr {
+                                                    text(fileSizeText)
+                                                    fontSize(11f)
+                                                    color(Color(0xFF999999))
+                                                    marginTop(2f)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            else -> {
+                                View {
+                                    attr {
+                                        size(msgW, msgH)
+                                        if (isSelf) {
+                                            backgroundLinearGradient(
+                                                Direction.TO_RIGHT,
+                                                ColorStop(Color(ctx.attr.bubblePrimaryColor), 0f),
+                                                ColorStop(Color(ctx.attr.bubblePrimaryGradientEndColor), 1f)
+                                            )
+                                            borderRadius(BorderRectRadius(12f, 2f, 12f, 12f))
+                                        } else {
+                                            backgroundColor(Color(ctx.attr.bubbleOtherBubbleColor))
+                                            borderRadius(BorderRectRadius(2f, 12f, 12f, 12f))
+                                        }
+                                        boxShadow(if (isSelf) BoxShadow(0f, 1f, 6f, Color(0x334F8FFF)) else BoxShadow(0f, 1f, 6f, Color(0x1A000000)))
+                                        padding(ctx.attr.bubblePaddingV, ctx.attr.bubblePaddingH, ctx.attr.bubblePaddingV, ctx.attr.bubblePaddingH)
+                                        overflow(false)
+                                    }
+                                    Text {
+                                        attr {
+                                            text(msgContent)
+                                            fontSize(ctx.attr.bubbleFontSize)
+                                            color(if (isSelf) Color(ctx.attr.bubbleSelfTextColor) else Color(ctx.attr.bubbleOtherTextColor))
+                                            lineHeight(ctx.attr.bubbleLineHeight)
+                                        }
                                     }
                                 }
                             }
@@ -373,4 +484,19 @@ class ChatMessageOptionsEvent : ComposeEvent() {
 
 fun ViewContainer<*, *>.ChatMessageOptions(init: ChatMessageOptionsView.() -> Unit) {
     addChild(ChatMessageOptionsView(), init)
+}
+
+private fun getFileIcon(mimeType: String): String {
+    return when {
+        mimeType.startsWith("image/") -> "🖼️"
+        mimeType.startsWith("video/") -> "🎬"
+        mimeType.startsWith("audio/") -> "🎵"
+        mimeType.contains("pdf") -> "📕"
+        mimeType.contains("word") || mimeType.contains("document") -> "📝"
+        mimeType.contains("excel") || mimeType.contains("spreadsheet") -> "📊"
+        mimeType.contains("powerpoint") || mimeType.contains("presentation") -> "📙"
+        mimeType.contains("zip") || mimeType.contains("rar") || mimeType.contains("tar") -> "📦"
+        mimeType.startsWith("text/") -> "📄"
+        else -> "📄"
+    }
 }
